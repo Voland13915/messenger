@@ -3,31 +3,16 @@ package messenger.singleton;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Singleton — глобальный менеджер соединений WebSocket.
- *
- * Гарантирует, что существует ровно один экземпляр менеджера
- * и предоставляет к нему глобальную точку доступа через Instance().
- *
- * Потокобезопасная реализация через double-checked locking.
- */
 public class WebSocketManager {
 
-    // static uniqueInstance — единственный экземпляр класса
     private static volatile WebSocketManager instance;
-
     private final List<String> activeConnections = new ArrayList<>();
     private boolean isRunning = false;
 
-    // Приватный конструктор — запрещает создание объекта извне
     private WebSocketManager() {
         System.out.println("  [WebSocketManager] Инициализация менеджера соединений...");
     }
 
-    /**
-     * static Instance() — точка доступа к единственному экземпляру.
-     * Double-checked locking для потокобезопасности.
-     */
     public static WebSocketManager getInstance() {
         if (instance == null) {
             synchronized (WebSocketManager.class) {
@@ -39,6 +24,7 @@ public class WebSocketManager {
         return instance;
     }
 
+    /*SingletonOperation()*/
     public void start() {
         isRunning = true;
         System.out.println("  [WebSocketManager] Сервер запущен.");
@@ -55,11 +41,27 @@ public class WebSocketManager {
         System.out.println("  [WebSocketManager] Пользователь отключён: " + userId);
     }
 
+    /*GetSingletonData()*/
     public int getConnectionCount() {
         return activeConnections.size();
     }
 
     public boolean isRunning() {
         return isRunning;
+    }
+
+    // Демонстрация
+    public static void main(String[] args) {
+        System.out.println("=== Singleton: WebSocketManager ===");
+
+        WebSocketManager manager1 = WebSocketManager.getInstance();
+        WebSocketManager manager2 = WebSocketManager.getInstance();
+        manager1.start();
+        manager1.connect("alice");
+        manager1.connect("bob");
+        System.out.println("  Один и тот же экземпляр: " + (manager1 == manager2));
+        System.out.println("  Активных соединений: " + manager1.getConnectionCount());
+        manager1.disconnect("bob");
+        System.out.println("  Активных соединений после отключения: " + manager1.getConnectionCount());
     }
 }
