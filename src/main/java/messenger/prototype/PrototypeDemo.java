@@ -1,9 +1,6 @@
 package messenger.prototype;
 
-/**
- * Prototype — интерфейс прототипа.
- * Объявляет интерфейс для клонирования самого себя.
- */
+// Prototype
 interface Message {
     /* Clone() */
     Message clone();
