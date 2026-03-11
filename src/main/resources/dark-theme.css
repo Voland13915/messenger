@@ -1,0 +1,53 @@
+/* ── Общие ── */
+.root { -fx-font-family: "Segoe UI", sans-serif; -fx-font-size: 13px; -fx-background-color: #1A1A2E; }
+
+/* ── Левая панель ── */
+.left-panel       { -fx-background-color: #16213E; -fx-border-color: #2A2A4A; -fx-border-width: 0 1 0 0; }
+.left-header      { -fx-background-color: #16213E; }
+.left-title       { -fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #E8E8F0; }
+.status-bar       { -fx-text-fill: #4CAF50; -fx-font-size: 11px; }
+.chat-scroll      { -fx-background-color: transparent; -fx-background: transparent; }
+.chat-scroll .viewport { -fx-background-color: transparent; }
+
+/* ── Элемент чата ── */
+.chat-item          { -fx-background-color: transparent; -fx-cursor: hand; }
+.chat-item:hover    { -fx-background-color: #1E2A4A; }
+.chat-item-selected { -fx-background-color: #252550; }
+.chat-name          { -fx-font-weight: bold; -fx-text-fill: #E8E8F0; -fx-font-size: 13px; }
+.chat-last          { -fx-text-fill: #6666AA; -fx-font-size: 11px; }
+
+/* ── Аватар ── */
+.avatar-circle   { -fx-fill: #7C83FD; }
+.avatar-initials { -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; }
+
+/* ── Правая панель ── */
+.right-panel    { -fx-background-color: #1A1A2E; }
+.chat-header    { -fx-background-color: #1A1A2E; -fx-border-color: #2A2A4A; -fx-border-width: 0 0 1 0; }
+.chat-title     { -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #E8E8F0; }
+.message-area   { -fx-background-color: #1A1A2E; }
+.message-scroll { -fx-background-color: #1A1A2E; -fx-background: #1A1A2E; }
+.message-scroll .viewport { -fx-background-color: #1A1A2E; }
+
+/* ── Пузырьки ── */
+.bubble-own   { -fx-background-color: #7C83FD; -fx-background-radius: 16 16 4 16; }
+.bubble-other { -fx-background-color: #252545; -fx-background-radius: 16 16 16 4; }
+.bubble-text  { -fx-text-fill: #E8E8F0; -fx-font-size: 13px; }
+.bubble-own .bubble-text { -fx-text-fill: #FFFFFF; }
+.bubble-sender { -fx-text-fill: #9CA3FD; -fx-font-size: 11px; -fx-font-weight: bold; }
+
+/* ── Ввод ── */
+.input-panel  { -fx-background-color: #16213E; -fx-border-color: #2A2A4A; -fx-border-width: 1 0 0 0; }
+.input-field  { -fx-background-color: #252545; -fx-background-radius: 20; -fx-border-radius: 20; -fx-border-color: transparent; -fx-padding: 8 14 8 14; -fx-text-fill: #E8E8F0; }
+.input-field:focused { -fx-border-color: #7C83FD; }
+
+/* ── Кнопки ── */
+.send-btn       { -fx-background-color: #7C83FD; -fx-text-fill: white; -fx-background-radius: 50; -fx-min-width: 36; -fx-min-height: 36; -fx-cursor: hand; -fx-font-size: 14px; }
+.send-btn:hover { -fx-background-color: #6670F0; }
+.forward-btn    { -fx-background-color: transparent; -fx-text-fill: #6666AA; -fx-border-color: #3A3A6A; -fx-background-radius: 50; -fx-border-radius: 50; -fx-min-width: 32; -fx-min-height: 32; -fx-cursor: hand; }
+.forward-btn:hover { -fx-text-fill: #7C83FD; -fx-border-color: #7C83FD; }
+.theme-btn      { -fx-background-color: transparent; -fx-text-fill: #6666AA; -fx-border-color: transparent; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 0; }
+.theme-btn:hover { -fx-text-fill: #7C83FD; }
+.type-btn         { -fx-background-color: transparent; -fx-text-fill: #6666AA; -fx-border-color: #3A3A6A; -fx-background-radius: 8; -fx-border-radius: 8; -fx-min-width: 30; -fx-min-height: 30; -fx-cursor: hand; }
+.type-btn-active  { -fx-background-color: #252550; -fx-text-fill: #7C83FD; -fx-border-color: #7C83FD; }
+
+.bubble-selected { -fx-border-color: #9CA3FD; -fx-border-width: 2; -fx-border-radius: 16; }
