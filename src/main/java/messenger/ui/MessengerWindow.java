@@ -5,8 +5,14 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.MediaView;
 import javafx.scene.shape.Circle;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -17,25 +23,30 @@ import messenger.factorymethod.*;
 import messenger.prototype.*;
 import messenger.singleton.WebSocketManager;
 
+import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class MessengerWindow extends Application {
 
-    // ── Abstract Factory: текущая фабрика темы ───────────────
+    // ── Abstract Factory ──────────────────────────────────────
     private UIFactory currentFactory = new LightThemeFactory();
     private boolean isDark = false;
 
-    // ── Singleton ────────────────────────────────────────────
+    // ── Singleton ─────────────────────────────────────────────
     private final WebSocketManager wsManager = WebSocketManager.getInstance();
 
-    // ── Данные чатов ─────────────────────────────────────────
+    // ── Данные чатов ──────────────────────────────────────────
     private final Map<String, ObservableList<ChatMessage>> chatHistory = new HashMap<>();
     private String selectedChat = "Alice";
 
-    // ── Мульти-выделение сообщений (Prototype) ────────────────
+    // ── Мульти-выделение (Prototype) ──────────────────────────
     private final Set<ChatMessage> selectedMessages = new LinkedHashSet<>();
     private final Map<ChatMessage, VBox> selectedBubbles = new HashMap<>();
+
+    // ── Цитата (Builder) ──────────────────────────────────────
+    private ChatMessage quotedMessage = null;
+    private HBox quoteBar = null;
 
     // ── UI компоненты ─────────────────────────────────────────
     private VBox messageArea;
@@ -43,10 +54,10 @@ public class MessengerWindow extends Application {
     private TextField inputField;
     private Label chatTitleLabel;
     private Label statusBar;
+    private VBox inputContainer;
     private Scene scene;
     private VBox chatList;
 
-    // ── Список чатов ─────────────────────────────────────────
     private final String[] chats = {"Alice", "Bob", "Charlie", "Группа: Проект"};
 
     @Override
@@ -63,7 +74,7 @@ public class MessengerWindow extends Application {
         seedInitialMessages();
 
         BorderPane root = buildRoot();
-        scene = new Scene(root, 900, 620);
+        scene = new Scene(root, 900, 640);
         applyTheme();
 
         stage.setTitle("Messenger");
@@ -73,17 +84,17 @@ public class MessengerWindow extends Application {
 
     // ── Начальные сообщения ───────────────────────────────────
     private void seedInitialMessages() {
-        chatHistory.get("Alice").add(new ChatMessage("Alice", "Привет! Как дела?", false, "TEXT"));
-        chatHistory.get("Alice").add(new ChatMessage("Вы", "Всё отлично, спасибо!", true, "TEXT"));
-        chatHistory.get("Alice").add(new ChatMessage("Alice", "Встретимся завтра?", false, "TEXT"));
+        chatHistory.get("Alice").add(new ChatMessage("Alice", "Привет! Как дела?", false, "TEXT", null, null, null));
+        chatHistory.get("Alice").add(new ChatMessage("Вы", "Всё отлично, спасибо!", true, "TEXT", null, null, null));
+        chatHistory.get("Alice").add(new ChatMessage("Alice", "Встретимся завтра?", false, "TEXT", null, null, null));
 
-        chatHistory.get("Bob").add(new ChatMessage("Bob", "Смотрел новый фильм?", false, "TEXT"));
-        chatHistory.get("Bob").add(new ChatMessage("Вы", "Ещё нет!", true, "TEXT"));
+        chatHistory.get("Bob").add(new ChatMessage("Bob", "Смотрел новый фильм?", false, "TEXT", null, null, null));
+        chatHistory.get("Bob").add(new ChatMessage("Вы", "Ещё нет!", true, "TEXT", null, null, null));
 
-        chatHistory.get("Charlie").add(new ChatMessage("Charlie", "Держи фото 📷", false, "IMAGE"));
+        chatHistory.get("Charlie").add(new ChatMessage("Charlie", "Держи фото 📷", false, "TEXT", null, null, null));
 
-        chatHistory.get("Группа: Проект").add(new ChatMessage("Alice", "Дедлайн завтра!", false, "TEXT"));
-        chatHistory.get("Группа: Проект").add(new ChatMessage("Bob", "Уже делаю", false, "TEXT"));
+        chatHistory.get("Группа: Проект").add(new ChatMessage("Alice", "Дедлайн завтра!", false, "TEXT", null, null, null));
+        chatHistory.get("Группа: Проект").add(new ChatMessage("Bob", "Уже делаю", false, "TEXT", null, null, null));
     }
 
     // ── Построение интерфейса ─────────────────────────────────
@@ -94,9 +105,7 @@ public class MessengerWindow extends Application {
         leftPanel.setPrefWidth(240);
         bp.setLeft(leftPanel);
 
-        VBox rightPanel = buildRightPanel();
-        bp.setCenter(rightPanel);
-
+        bp.setCenter(buildRightPanel());
         return bp;
     }
 
@@ -118,7 +127,6 @@ public class MessengerWindow extends Application {
         themeBtn.getStyleClass().add("theme-btn");
         themeBtn.setOnAction(e -> toggleTheme());
         themeBtn.setTooltip(new Tooltip("Переключить тему"));
-
         header.getChildren().addAll(title, themeBtn);
 
         statusBar = new Label("● " + wsManager.getConnectionCount() + " онлайн");
@@ -126,9 +134,7 @@ public class MessengerWindow extends Application {
         statusBar.setPadding(new Insets(4, 16, 8, 16));
 
         chatList = new VBox(0);
-        for (String chat : chats) {
-            chatList.getChildren().add(buildChatItem(chat));
-        }
+        for (String chat : chats) chatList.getChildren().add(buildChatItem(chat));
 
         ScrollPane chatScroll = new ScrollPane(chatList);
         chatScroll.setFitToWidth(true);
@@ -145,9 +151,7 @@ public class MessengerWindow extends Application {
         item.setPadding(new Insets(10, 16, 10, 16));
         item.setAlignment(Pos.CENTER_LEFT);
 
-        if (name.equals(selectedChat)) {
-            item.getStyleClass().add("chat-item-selected");
-        }
+        if (name.equals(selectedChat)) item.getStyleClass().add("chat-item-selected");
 
         StackPane avatar = new StackPane();
         Circle circle = new Circle(20);
@@ -195,9 +199,10 @@ public class MessengerWindow extends Application {
         messageScroll.getStyleClass().add("message-scroll");
         VBox.setVgrow(messageScroll, Priority.ALWAYS);
 
-        HBox inputPanel = buildInputPanel();
+        inputContainer = new VBox(0);
+        inputContainer.getChildren().add(buildInputPanel());
 
-        panel.getChildren().addAll(chatHeader, messageScroll, inputPanel);
+        panel.getChildren().addAll(chatHeader, messageScroll, inputContainer);
         refreshMessages();
         return panel;
     }
@@ -208,34 +213,44 @@ public class MessengerWindow extends Application {
         panel.setPadding(new Insets(12, 16, 12, 16));
         panel.setAlignment(Pos.CENTER);
 
+        // T — текст, 🖼 — фото, ▶ — видео, 📍 — геолокация
         Button textBtn  = new Button("T");
         Button imageBtn = new Button("🖼");
         Button videoBtn = new Button("▶");
+        Button geoBtn   = new Button("📍");
+
         textBtn.getStyleClass().addAll("type-btn", "type-btn-active");
         imageBtn.getStyleClass().add("type-btn");
         videoBtn.getStyleClass().add("type-btn");
+        geoBtn.getStyleClass().add("type-btn");
 
-        final String[] msgType = {"TEXT"};
         textBtn.setOnAction(e -> {
-            msgType[0] = "TEXT";
             textBtn.getStyleClass().add("type-btn-active");
             imageBtn.getStyleClass().remove("type-btn-active");
             videoBtn.getStyleClass().remove("type-btn-active");
+            geoBtn.getStyleClass().remove("type-btn-active");
             inputField.setPromptText("Напишите сообщение...");
         });
         imageBtn.setOnAction(e -> {
-            msgType[0] = "IMAGE";
             imageBtn.getStyleClass().add("type-btn-active");
             textBtn.getStyleClass().remove("type-btn-active");
             videoBtn.getStyleClass().remove("type-btn-active");
-            inputField.setPromptText("URL изображения...");
+            geoBtn.getStyleClass().remove("type-btn-active");
+            sendFileMessage("IMAGE");
         });
         videoBtn.setOnAction(e -> {
-            msgType[0] = "VIDEO";
             videoBtn.getStyleClass().add("type-btn-active");
             textBtn.getStyleClass().remove("type-btn-active");
             imageBtn.getStyleClass().remove("type-btn-active");
-            inputField.setPromptText("URL видео...");
+            geoBtn.getStyleClass().remove("type-btn-active");
+            sendFileMessage("VIDEO");
+        });
+        geoBtn.setOnAction(e -> {
+            geoBtn.getStyleClass().add("type-btn-active");
+            textBtn.getStyleClass().remove("type-btn-active");
+            imageBtn.getStyleClass().remove("type-btn-active");
+            videoBtn.getStyleClass().remove("type-btn-active");
+            sendLocationMessage();
         });
 
         inputField = new TextField();
@@ -245,48 +260,173 @@ public class MessengerWindow extends Application {
 
         Button sendBtn = new Button("➤");
         sendBtn.getStyleClass().add("send-btn");
-        sendBtn.setOnAction(e -> sendMessage(msgType[0]));
-        inputField.setOnAction(e -> sendMessage(msgType[0]));
+        sendBtn.setOnAction(e -> sendMessage());
+        inputField.setOnAction(e -> sendMessage());
 
+        // ⤷ — переслать, ↩ — ответить
         Button forwardBtn = new Button("⤷");
         forwardBtn.getStyleClass().add("forward-btn");
         forwardBtn.setTooltip(new Tooltip("Переслать выбранные сообщения"));
         forwardBtn.setOnAction(e -> forwardMessage());
 
-        panel.getChildren().addAll(textBtn, imageBtn, videoBtn, inputField, forwardBtn, sendBtn);
+        Button replyBtn = new Button("↩");
+        replyBtn.getStyleClass().add("forward-btn");
+        replyBtn.setTooltip(new Tooltip("Ответить на выбранное сообщение"));
+        replyBtn.setOnAction(e -> replyToSelected());
+
+        panel.getChildren().addAll(textBtn, imageBtn, videoBtn, geoBtn, inputField, replyBtn, forwardBtn, sendBtn);
         return panel;
     }
 
-    // ── Отправка сообщения (Factory Method + Builder) ─────────
-    private void sendMessage(String type) {
+    // ── 1. Текст (+ цитата если есть) — Builder ───────────────
+    private void sendMessage() {
         String text = inputField.getText().trim();
         if (text.isEmpty()) return;
 
-        // Factory Method — создаём нужный тип сообщения
-        MessageCreator creator = switch (type) {
-            case "IMAGE" -> new ImageMessageCreator();
-            case "VIDEO" -> new VideoMessageCreator();
-            default      -> new TextMessageCreator();
-        };
-        creator.factoryMethod(text);
+        // Factory Method
+        new TextMessageCreator().factoryMethod(text);
 
-        // Builder — собираем ComplexMessage с метаданными
+        // Builder — собираем с цитатой если есть
         ConcreteMessageBuilder builder = new ConcreteMessageBuilder();
-        new MessageDirector(builder).construct(
-                "Вы", text, null,
-                type.equals("TEXT") ? null : text,
-                null
+        String quote = quotedMessage != null ? quotedMessage.sender + ": " + quotedMessage.text : null;
+        new MessageDirector(builder).construct("Вы", text, quote, null, null);
+
+        chatHistory.get(selectedChat).add(
+                new ChatMessage("Вы", text, true, "TEXT", null, quote, null)
         );
 
-        chatHistory.get(selectedChat).add(new ChatMessage("Вы", text, true, type));
         inputField.clear();
+        clearQuote();
         refreshMessages();
         updateChatList();
     }
 
-    // ── Пересылка (Prototype) ─────────────────────────────────
+    // ── 2. Фото/видео + подпись — Builder + Factory Method ────
+    private void sendFileMessage(String type) {
+        FileChooser chooser = new FileChooser();
+        if (type.equals("IMAGE")) {
+            chooser.setTitle("Выберите изображение");
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Изображения", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp")
+            );
+        } else {
+            chooser.setTitle("Выберите видео");
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Видео", "*.mp4", "*.avi", "*.mkv", "*.mov")
+            );
+        }
+
+        File file = chooser.showOpenDialog(scene.getWindow());
+        if (file == null) return;
+
+        // Запрашиваем подпись
+        TextInputDialog captionDialog = new TextInputDialog();
+        captionDialog.setTitle("Подпись");
+        captionDialog.setHeaderText(null);
+        captionDialog.setContentText("Добавить подпись (необязательно):");
+        String caption = captionDialog.showAndWait().orElse("").trim();
+
+        // Factory Method
+        MessageCreator creator = type.equals("IMAGE")
+                ? new ImageMessageCreator()
+                : new VideoMessageCreator();
+        creator.factoryMethod(file.getAbsolutePath());
+
+        // Builder — файл + подпись + цитата если есть
+        ConcreteMessageBuilder builder = new ConcreteMessageBuilder();
+        String quote = quotedMessage != null ? quotedMessage.sender + ": " + quotedMessage.text : null;
+        new MessageDirector(builder).construct(
+                "Вы",
+                caption.isEmpty() ? file.getName() : caption,
+                quote,
+                file.getAbsolutePath(),
+                null
+        );
+        ComplexMessage complex = builder.getResult();
+
+        chatHistory.get(selectedChat).add(
+                new ChatMessage("Вы", complex.getText(), true, type, file.getAbsolutePath(), quote, null)
+        );
+
+        clearQuote();
+        refreshMessages();
+        updateChatList();
+    }
+
+    // ── 3. Геолокация — Builder ───────────────────────────────
+    private void sendLocationMessage() {
+        TextInputDialog dialog = new TextInputDialog("53.9045,27.5615");
+        dialog.setTitle("Геолокация");
+        dialog.setHeaderText(null);
+        dialog.setContentText("Введите координаты (широта,долгота):");
+
+        dialog.showAndWait().ifPresent(coords -> {
+            if (coords.trim().isEmpty()) return;
+
+            // Builder — текст + геолокация
+            ConcreteMessageBuilder builder = new ConcreteMessageBuilder();
+            String quote = quotedMessage != null ? quotedMessage.sender + ": " + quotedMessage.text : null;
+            new MessageDirector(builder).construct("Вы", "📍 " + coords, quote, null, coords);
+
+            chatHistory.get(selectedChat).add(
+                    new ChatMessage("Вы", "📍 " + coords, true, "TEXT", null, quote, coords)
+            );
+
+            clearQuote();
+            refreshMessages();
+            updateChatList();
+        });
+    }
+
+    // ── 4. Ответить с цитатой — Builder ──────────────────────
+    private void replyToSelected() {
+        if (selectedMessages.isEmpty()) return;
+
+        // Берём первое выделенное
+        ChatMessage toQuote = selectedMessages.iterator().next();
+        quotedMessage = toQuote;
+
+        // Снимаем выделение
+        selectedBubbles.values().forEach(b -> b.getStyleClass().remove("bubble-selected"));
+        selectedMessages.clear();
+        selectedBubbles.clear();
+
+        // Показываем плашку цитаты над полем ввода
+        showQuoteBar(toQuote);
+        inputField.requestFocus();
+    }
+
+    private void showQuoteBar(ChatMessage msg) {
+        clearQuote();
+
+        quoteBar = new HBox(8);
+        quoteBar.getStyleClass().add("quote-bar");
+        quoteBar.setPadding(new Insets(6, 12, 6, 12));
+        quoteBar.setAlignment(Pos.CENTER_LEFT);
+
+        Label quoteText = new Label("↩  " + msg.sender + ": " + msg.text);
+        quoteText.getStyleClass().add("quote-bar-text");
+        quoteText.setMaxWidth(500);
+        HBox.setHgrow(quoteText, Priority.ALWAYS);
+
+        Button cancelBtn = new Button("✕");
+        cancelBtn.getStyleClass().add("theme-btn");
+        cancelBtn.setOnAction(e -> clearQuote());
+
+        quoteBar.getChildren().addAll(quoteText, cancelBtn);
+        inputContainer.getChildren().add(0, quoteBar);
+    }
+
+    private void clearQuote() {
+        quotedMessage = null;
+        if (quoteBar != null) {
+            inputContainer.getChildren().remove(quoteBar);
+            quoteBar = null;
+        }
+    }
+
+    // ── 5. Пересылка — Prototype ──────────────────────────────
     private void forwardMessage() {
-        // Берём выделенные или последнее если ничего не выбрано
         List<ChatMessage> toForward = selectedMessages.isEmpty()
                 ? chatHistory.get(selectedChat).isEmpty()
                 ? Collections.emptyList()
@@ -305,7 +445,6 @@ public class MessengerWindow extends Application {
         dialog.setContentText("Выберите чат:");
 
         dialog.showAndWait().ifPresent(targetChat -> {
-            // Prototype — клонируем каждое сообщение отдельно
             for (ChatMessage msg : toForward) {
                 messenger.prototype.TextMessage proto =
                         new messenger.prototype.TextMessage(msg.text, msg.sender, selectedChat);
@@ -313,11 +452,10 @@ public class MessengerWindow extends Application {
                 messenger.prototype.Message forwarded = forwarder.forward(targetChat);
 
                 chatHistory.get(targetChat).add(
-                        new ChatMessage("⤷ " + msg.sender, forwarded.getContent(), false, "TEXT")
+                        new ChatMessage("⤷ " + msg.sender, forwarded.getContent(), false, msg.type, msg.filePath, null, msg.location)
                 );
             }
 
-            // Снимаем все выделения
             selectedBubbles.values().forEach(b -> b.getStyleClass().remove("bubble-selected"));
             selectedMessages.clear();
             selectedBubbles.clear();
@@ -325,6 +463,40 @@ public class MessengerWindow extends Application {
             showAlert("Переслано " + toForward.size() + " сообщ. в чат: " + targetChat);
             updateChatList();
         });
+    }
+
+    // ── Видеоплеер ────────────────────────────────────────────
+    private void openVideoPlayer(String filePath, String title) {
+        Stage playerStage = new Stage();
+        playerStage.setTitle(title);
+
+        Media media = new Media(new File(filePath).toURI().toString());
+        MediaPlayer player = new MediaPlayer(media);
+        MediaView mediaView = new MediaView(player);
+        mediaView.setFitWidth(640);
+        mediaView.setPreserveRatio(true);
+
+        Button playBtn  = new Button("▶ Играть");
+        Button pauseBtn = new Button("⏸ Пауза");
+        Button stopBtn  = new Button("⏹ Стоп");
+
+        playBtn.setOnAction(e  -> player.play());
+        pauseBtn.setOnAction(e -> player.pause());
+        stopBtn.setOnAction(e  -> { player.stop(); playerStage.close(); });
+
+        HBox controls = new HBox(10, playBtn, pauseBtn, stopBtn);
+        controls.setAlignment(Pos.CENTER);
+        controls.setPadding(new Insets(8));
+
+        VBox layout = new VBox(8, mediaView, controls);
+        layout.setAlignment(Pos.CENTER);
+        layout.setPadding(new Insets(10));
+        layout.setStyle("-fx-background-color: #000;");
+
+        playerStage.setScene(new Scene(layout));
+        playerStage.setOnCloseRequest(e -> player.stop());
+        playerStage.show();
+        player.play();
     }
 
     // ── Переключение темы (Abstract Factory) ─────────────────
@@ -345,10 +517,10 @@ public class MessengerWindow extends Application {
 
     // ── Обновление UI ─────────────────────────────────────────
     private void selectChat(String name) {
-        // Сбрасываем выделение при смене чата
         selectedBubbles.values().forEach(b -> b.getStyleClass().remove("bubble-selected"));
         selectedMessages.clear();
         selectedBubbles.clear();
+        clearQuote();
 
         selectedChat = name;
         chatTitleLabel.setText(name);
@@ -369,29 +541,89 @@ public class MessengerWindow extends Application {
         HBox row = new HBox();
         row.setMaxWidth(Double.MAX_VALUE);
 
-        VBox bubble = new VBox(3);
+        VBox bubble = new VBox(4);
         bubble.getStyleClass().add(msg.isOwn ? "bubble-own" : "bubble-other");
         bubble.setPadding(new Insets(8, 12, 8, 12));
-        bubble.setMaxWidth(400);
+        bubble.setMaxWidth(320);
 
+        // Имя отправителя (для чужих)
         if (!msg.isOwn) {
             Label sender = new Label(msg.sender);
             sender.getStyleClass().add("bubble-sender");
             bubble.getChildren().add(sender);
         }
 
-        String prefix = switch (msg.type) {
-            case "IMAGE" -> "🖼 ";
-            case "VIDEO" -> "▶ ";
-            default -> "";
-        };
+        // Цитата если есть
+        if (msg.quote != null) {
+            HBox quoteBox = new HBox();
+            quoteBox.setStyle("-fx-background-color: rgba(0,0,0,0.1); -fx-background-radius: 6; -fx-padding: 4 8 4 8;");
+            Label quoteLabel = new Label("↩ " + msg.quote);
+            quoteLabel.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
+            quoteLabel.getStyleClass().add("bubble-text");
+            quoteLabel.setWrapText(true);
+            quoteLabel.setMaxWidth(260);
+            quoteBox.getChildren().add(quoteLabel);
+            bubble.getChildren().add(quoteBox);
+        }
 
-        Label text = new Label(prefix + msg.text);
-        text.getStyleClass().add("bubble-text");
-        text.setWrapText(true);
-        bubble.getChildren().add(text);
+        // Изображение — миниатюра
+        if (msg.type.equals("IMAGE") && msg.filePath != null) {
+            try {
+                Image image = new Image(new File(msg.filePath).toURI().toString(), 280, 200, true, true);
+                ImageView imageView = new ImageView(image);
+                imageView.setFitWidth(280);
+                imageView.setPreserveRatio(true);
+                bubble.getChildren().add(imageView);
+            } catch (Exception ex) {
+                bubble.getChildren().add(new Label("🖼 " + msg.text));
+            }
+            if (!msg.text.equals(new File(msg.filePath).getName())) {
+                Label caption = new Label(msg.text);
+                caption.getStyleClass().add("bubble-text");
+                caption.setWrapText(true);
+                bubble.getChildren().add(caption);
+            }
 
-        // Клик — добавляем или убираем из выделения
+            // Видео — нажать для воспроизведения
+        } else if (msg.type.equals("VIDEO") && msg.filePath != null) {
+            HBox videoRow = new HBox(8);
+            videoRow.setAlignment(Pos.CENTER_LEFT);
+            videoRow.setStyle("-fx-cursor: hand;");
+            Label icon = new Label("▶");
+            icon.setStyle("-fx-font-size: 20px;");
+            VBox videoInfo = new VBox(2);
+            Label name = new Label(msg.text);
+            name.getStyleClass().add("bubble-text");
+            name.setStyle("-fx-font-weight: bold;");
+            Label hint = new Label("Нажмите для воспроизведения");
+            hint.setStyle("-fx-font-size: 11px; -fx-opacity: 0.6;");
+            hint.getStyleClass().add("bubble-text");
+            videoInfo.getChildren().addAll(name, hint);
+            videoRow.getChildren().addAll(icon, videoInfo);
+            bubble.getChildren().add(videoRow);
+            videoRow.setOnMouseClicked(e -> { e.consume(); openVideoPlayer(msg.filePath, msg.text); });
+
+            // Геолокация
+        } else if (msg.location != null) {
+            VBox geoBox = new VBox(2);
+            Label geoLabel = new Label("📍 " + msg.location);
+            geoLabel.getStyleClass().add("bubble-text");
+            geoLabel.setStyle("-fx-font-weight: bold;");
+            Label geoHint = new Label("Координаты");
+            geoHint.setStyle("-fx-font-size: 11px; -fx-opacity: 0.6;");
+            geoHint.getStyleClass().add("bubble-text");
+            geoBox.getChildren().addAll(geoLabel, geoHint);
+            bubble.getChildren().add(geoBox);
+
+            // Обычный текст
+        } else {
+            Label text = new Label(msg.text);
+            text.getStyleClass().add("bubble-text");
+            text.setWrapText(true);
+            bubble.getChildren().add(text);
+        }
+
+        // Клик — мульти-выделение
         bubble.setOnMouseClicked(e -> {
             if (selectedMessages.contains(msg)) {
                 selectedMessages.remove(msg);
@@ -411,9 +643,7 @@ public class MessengerWindow extends Application {
 
     private void updateChatList() {
         chatList.getChildren().clear();
-        for (String chat : chats) {
-            chatList.getChildren().add(buildChatItem(chat));
-        }
+        for (String chat : chats) chatList.getChildren().add(buildChatItem(chat));
         statusBar.setText("● " + wsManager.getConnectionCount() + " онлайн");
     }
 
@@ -425,14 +655,18 @@ public class MessengerWindow extends Application {
 
     // ── Внутренний класс сообщения ────────────────────────────
     static class ChatMessage {
-        final String sender, text, type;
+        final String sender, text, type, filePath, quote, location;
         final boolean isOwn;
 
-        ChatMessage(String sender, String text, boolean isOwn, String type) {
-            this.sender = sender;
-            this.text   = text;
-            this.isOwn  = isOwn;
-            this.type   = type;
+        ChatMessage(String sender, String text, boolean isOwn, String type,
+                    String filePath, String quote, String location) {
+            this.sender   = sender;
+            this.text     = text;
+            this.isOwn    = isOwn;
+            this.type     = type;
+            this.filePath = filePath;
+            this.quote    = quote;
+            this.location = location;
         }
     }
 

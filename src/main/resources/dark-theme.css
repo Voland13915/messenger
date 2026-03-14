@@ -51,3 +51,6 @@
 .type-btn-active  { -fx-background-color: #252550; -fx-text-fill: #7C83FD; -fx-border-color: #7C83FD; }
 
 .bubble-selected { -fx-border-color: #9CA3FD; -fx-border-width: 2; -fx-border-radius: 16; }
+
+.quote-bar { -fx-background-color: #1E2240; -fx-border-color: #7C83FD; -fx-border-width: 0 0 0 3; }
+.quote-bar-text { -fx-text-fill: #9999BB; -fx-font-size: 12px; }

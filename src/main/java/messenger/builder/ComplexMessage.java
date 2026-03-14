@@ -23,4 +23,7 @@ public class ComplexMessage {
                 ", location='"  + location      + '\'' +
                 '}';
     }
+
+    public String getText() { return text; }
 }
+
