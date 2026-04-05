@@ -40,17 +40,76 @@
 .input-field  { -fx-background-color: #F0F0F5; -fx-background-radius: 20; -fx-border-radius: 20; -fx-border-color: transparent; -fx-padding: 8 14 8 14; -fx-text-fill: #1A1A2E; }
 .input-field:focused { -fx-border-color: #7C83FD; }
 
-/* ── Кнопки ── */
+/* ── Кнопка «⊕» прикрепить ── */
+.attach-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #7C83FD;
+    -fx-font-size: 22px;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-width: 32;
+    -fx-min-height: 32;
+}
+.attach-btn:hover { -fx-text-fill: #5A61DD; }
+
+/* ── Кнопка «⋯» дополнительно ── */
+.more-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #888899;
+    -fx-font-size: 16px;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-width: 28;
+    -fx-min-height: 32;
+}
+.more-btn:hover { -fx-text-fill: #7C83FD; }
+
+/* ── Кнопка отправки ── */
 .send-btn       { -fx-background-color: #7C83FD; -fx-text-fill: white; -fx-background-radius: 50; -fx-min-width: 36; -fx-min-height: 36; -fx-cursor: hand; -fx-font-size: 14px; }
 .send-btn:hover { -fx-background-color: #6670F0; }
-.forward-btn    { -fx-background-color: transparent; -fx-text-fill: #888899; -fx-border-color: #CCCCDD; -fx-background-radius: 50; -fx-border-radius: 50; -fx-min-width: 32; -fx-min-height: 32; -fx-cursor: hand; }
-.forward-btn:hover { -fx-text-fill: #7C83FD; -fx-border-color: #7C83FD; }
-.theme-btn      { -fx-background-color: transparent; -fx-text-fill: #888899; -fx-border-color: transparent; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 0; }
-.theme-btn:hover { -fx-text-fill: #7C83FD; }
-.type-btn         { -fx-background-color: transparent; -fx-text-fill: #888899; -fx-border-color: #CCCCDD; -fx-background-radius: 8; -fx-border-radius: 8; -fx-min-width: 30; -fx-min-height: 30; -fx-cursor: hand; }
-.type-btn-active  { -fx-background-color: #EEF0FF; -fx-text-fill: #7C83FD; -fx-border-color: #7C83FD; }
 
+/* ── Кнопка темы ── */
+.theme-btn       { -fx-background-color: transparent; -fx-text-fill: #888899; -fx-border-color: transparent; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 0; }
+.theme-btn:hover { -fx-text-fill: #7C83FD; }
+
+/* ── Контекстная панель (Ответить / Переслать) ── */
+.context-bar      { -fx-background-color: #EEF0FF; -fx-border-color: #7C83FD; -fx-border-width: 0 0 0 3; }
+.context-bar-hint { -fx-text-fill: #555577; -fx-font-size: 12px; }
+
+.context-action-btn {
+    -fx-background-color: #7C83FD;
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-cursor: hand;
+    -fx-font-size: 12px;
+    -fx-padding: 5 10 5 10;
+}
+.context-action-btn:hover { -fx-background-color: #6670F0; }
+
+/* ── Выделение пузырька ── */
 .bubble-selected { -fx-border-color: #7C83FD; -fx-border-width: 2; -fx-border-radius: 16; }
 
-.quote-bar { -fx-background-color: #EEF0FF; -fx-border-color: #7C83FD; -fx-border-width: 0 0 0 3; }
+/* ── Цитата ── */
+.quote-bar      { -fx-background-color: #EEF0FF; -fx-border-color: #7C83FD; -fx-border-width: 0 0 0 3; }
 .quote-bar-text { -fx-text-fill: #555577; -fx-font-size: 12px; }
+
+.popup-menu {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0E0E5;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 12, 0, 0, 4);
+    -fx-min-width: 200;
+}
+.popup-item { -fx-cursor: hand; -fx-background-color: transparent; }
+.popup-item-hover { -fx-background-color: #F0F0F8; }
+.popup-item-icon { -fx-font-size: 13px; -fx-text-fill: #7C83FD; }
+.popup-item-text { -fx-font-size: 13px; -fx-text-fill: #1A1A2E; }
+.popup-separator { -fx-background-color: #E0E0E5; }
+
+.popup-item-check  { -fx-font-size: 12px; -fx-text-fill: #7C83FD; }
+.popup-item-active { -fx-background-color: #F0F0FB; }
