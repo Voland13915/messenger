@@ -18,9 +18,12 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 
 import messenger.abstractfactory.*;
-import messenger.builder.*;
-import messenger.factorymethod.*;
-import messenger.prototype.*;
+import messenger.adapter.*;
+import messenger.builder.ComplexMessage;
+import messenger.composite.*;
+import messenger.decorator.*;
+import messenger.facade.MessengerFacade;
+import messenger.proxy.ImageLoaderProxy;
 import messenger.singleton.WebSocketManager;
 
 import java.io.File;
@@ -36,6 +39,14 @@ public class MessengerWindow extends Application {
     // ── Singleton ─────────────────────────────────────────────
     private final WebSocketManager wsManager = WebSocketManager.getInstance();
 
+    // ── Facade ────────────────────────────────────────────────
+    private final MessengerFacade facade = new MessengerFacade();
+
+    // ── Adapter — уведомления через внешний сервис ────────────
+    private final Notifier notifier = new EmailNotifierAdapter(
+            new ExternalEmailService(), "user@example.com"
+    );
+
     // ── Данные чатов ──────────────────────────────────────────
     private final Map<String, ObservableList<ChatMessage>> chatHistory = new HashMap<>();
     private String selectedChat = "Alice";
@@ -47,6 +58,12 @@ public class MessengerWindow extends Application {
     // ── Цитата (Builder) ──────────────────────────────────────
     private ChatMessage quotedMessage = null;
     private HBox quoteBar = null;
+
+    // ── Decorator ─────────────────────────────────────────────
+    private boolean isImportant = false;
+    private boolean isEncrypted = false;
+    private Button importantBtn;
+    private Button encryptedBtn;
 
     // ── UI компоненты ─────────────────────────────────────────
     private VBox messageArea;
@@ -100,11 +117,9 @@ public class MessengerWindow extends Application {
     // ── Построение интерфейса ─────────────────────────────────
     private BorderPane buildRoot() {
         BorderPane bp = new BorderPane();
-
         VBox leftPanel = buildLeftPanel();
         leftPanel.setPrefWidth(240);
         bp.setLeft(leftPanel);
-
         bp.setCenter(buildRightPanel());
         return bp;
     }
@@ -129,7 +144,7 @@ public class MessengerWindow extends Application {
         themeBtn.setTooltip(new Tooltip("Переключить тему"));
         header.getChildren().addAll(title, themeBtn);
 
-        statusBar = new Label("● " + wsManager.getConnectionCount() + " онлайн");
+        statusBar = new Label("● " + facade.getOnlineCount() + " онлайн");
         statusBar.getStyleClass().add("status-bar");
         statusBar.setPadding(new Insets(4, 16, 8, 16));
 
@@ -208,17 +223,15 @@ public class MessengerWindow extends Application {
     }
 
     private HBox buildInputPanel() {
-        HBox panel = new HBox(10);
+        HBox panel = new HBox(8);
         panel.getStyleClass().add("input-panel");
         panel.setPadding(new Insets(12, 16, 12, 16));
         panel.setAlignment(Pos.CENTER);
 
-        // T — текст, 🖼 — фото, ▶ — видео, 📍 — геолокация
         Button textBtn  = new Button("T");
         Button imageBtn = new Button("🖼");
         Button videoBtn = new Button("▶");
         Button geoBtn   = new Button("📍");
-
         textBtn.getStyleClass().addAll("type-btn", "type-btn-active");
         imageBtn.getStyleClass().add("type-btn");
         videoBtn.getStyleClass().add("type-btn");
@@ -258,12 +271,42 @@ public class MessengerWindow extends Application {
         inputField.getStyleClass().add("input-field");
         HBox.setHgrow(inputField, Priority.ALWAYS);
 
+        // Decorator
+        importantBtn = new Button("❗");
+        importantBtn.getStyleClass().add("type-btn");
+        importantBtn.setTooltip(new Tooltip("Важное сообщение"));
+        importantBtn.setOnAction(e -> {
+            isImportant = !isImportant;
+            if (isImportant) importantBtn.getStyleClass().add("type-btn-active");
+            else importantBtn.getStyleClass().remove("type-btn-active");
+        });
+
+        encryptedBtn = new Button("🔒");
+        encryptedBtn.getStyleClass().add("type-btn");
+        encryptedBtn.setTooltip(new Tooltip("Зашифрованное сообщение"));
+        encryptedBtn.setOnAction(e -> {
+            isEncrypted = !isEncrypted;
+            if (isEncrypted) encryptedBtn.getStyleClass().add("type-btn-active");
+            else encryptedBtn.getStyleClass().remove("type-btn-active");
+        });
+
+        // Composite
+        Button groupBtn = new Button("👥");
+        groupBtn.getStyleClass().add("type-btn");
+        groupBtn.setTooltip(new Tooltip("Отправить нескольким"));
+        groupBtn.setOnAction(e -> sendToGroup());
+
+        // Adapter
+        Button emailBtn = new Button("✉");
+        emailBtn.getStyleClass().add("type-btn");
+        emailBtn.setTooltip(new Tooltip("Отправить уведомление на email"));
+        emailBtn.setOnAction(e -> sendEmailNotification());
+
         Button sendBtn = new Button("➤");
         sendBtn.getStyleClass().add("send-btn");
         sendBtn.setOnAction(e -> sendMessage());
         inputField.setOnAction(e -> sendMessage());
 
-        // ⤷ — переслать, ↩ — ответить
         Button forwardBtn = new Button("⤷");
         forwardBtn.getStyleClass().add("forward-btn");
         forwardBtn.setTooltip(new Tooltip("Переслать выбранные сообщения"));
@@ -274,34 +317,166 @@ public class MessengerWindow extends Application {
         replyBtn.setTooltip(new Tooltip("Ответить на выбранное сообщение"));
         replyBtn.setOnAction(e -> replyToSelected());
 
-        panel.getChildren().addAll(textBtn, imageBtn, videoBtn, geoBtn, inputField, replyBtn, forwardBtn, sendBtn);
+        panel.getChildren().addAll(
+                textBtn, imageBtn, videoBtn, geoBtn,
+                inputField,
+                importantBtn, encryptedBtn,
+                groupBtn, emailBtn,
+                replyBtn, forwardBtn, sendBtn
+        );
         return panel;
     }
 
-    // ── 1. Текст (+ цитата если есть) — Builder ───────────────
+    // ── Adapter — уведомление на email ────────────────────────
+    private void sendEmailNotification() {
+        ObservableList<ChatMessage> history = chatHistory.get(selectedChat);
+
+        // Берём выделенные или последнее сообщение
+        List<ChatMessage> toNotify = selectedMessages.isEmpty()
+                ? history.isEmpty()
+                ? Collections.emptyList()
+                : List.of(history.get(history.size() - 1))
+                : new ArrayList<>(selectedMessages);
+
+        if (toNotify.isEmpty()) {
+            showAlert("Нет сообщений для уведомления.");
+            return;
+        }
+
+        // Запрашиваем email
+        TextInputDialog emailDialog = new TextInputDialog("user@example.com");
+        emailDialog.setTitle("Email уведомление");
+        emailDialog.setHeaderText("Adapter: notify() → sendEmail()");
+        emailDialog.setContentText("Email получателя:");
+
+        emailDialog.showAndWait().ifPresent(email -> {
+            if (email.trim().isEmpty()) return;
+
+            // Создаём адаптер с нужным email
+            Notifier customNotifier = new EmailNotifierAdapter(
+                    new ExternalEmailService(), email.trim()
+            );
+
+            // Client вызывает notify() — не знает про sendEmail() внутри
+            for (ChatMessage msg : toNotify) {
+                customNotifier.notify(
+                        "[" + selectedChat + "] " + msg.sender + ": " + msg.text
+                );
+            }
+
+            // Снимаем выделение
+            selectedBubbles.values().forEach(b -> b.getStyleClass().remove("bubble-selected"));
+            selectedMessages.clear();
+            selectedBubbles.clear();
+
+            showAlert("Уведомление отправлено на: " + email + "\n(см. консоль)");
+        });
+    }
+
+    // ── Composite — отправка группе ───────────────────────────
+    private void sendToGroup() {
+        String text = inputField.getText().trim();
+        if (text.isEmpty()) {
+            showAlert("Введите текст сообщения перед выбором группы.");
+            return;
+        }
+
+        List<String> available = Arrays.stream(chats)
+                .filter(c -> !c.equals(selectedChat))
+                .collect(Collectors.toList());
+
+        Dialog<List<String>> dialog = new Dialog<>();
+        dialog.setTitle("Отправить группе");
+        dialog.setHeaderText("Выберите получателей:");
+
+        VBox checkBoxes = new VBox(8);
+        checkBoxes.setPadding(new Insets(12));
+        List<CheckBox> boxes = new ArrayList<>();
+        for (String chat : available) {
+            CheckBox cb = new CheckBox(chat);
+            boxes.add(cb);
+            checkBoxes.getChildren().add(cb);
+        }
+
+        dialog.getDialogPane().setContent(checkBoxes);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        dialog.setResultConverter(btn -> {
+            if (btn == ButtonType.OK) {
+                return boxes.stream()
+                        .filter(CheckBox::isSelected)
+                        .map(CheckBox::getText)
+                        .collect(Collectors.toList());
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(selected -> {
+            if (selected == null || selected.isEmpty()) return;
+
+            String quote = quotedMessage != null ? quotedMessage.sender + ": " + quotedMessage.text : null;
+            String decoratedText = applyDecorators(text, "Вы");
+
+            // Composite — строим дерево получателей
+            RecipientGroup group = new RecipientGroup("Рассылка");
+            for (String name : selected) {
+                group.add(new SingleRecipient(name));
+            }
+
+            // Operation() — рассылаем всем
+            group.send(decoratedText);
+
+            for (Recipient member : group.getMembers()) {
+                ComplexMessage msg = facade.sendText("Вы", decoratedText, quote);
+                chatHistory.get(member.getName()).add(
+                        new ChatMessage("Вы", msg.getText(), true, "TEXT", null, quote, null)
+                );
+            }
+
+            ComplexMessage msg = facade.sendText("Вы", decoratedText, quote);
+            chatHistory.get(selectedChat).add(
+                    new ChatMessage("Вы", msg.getText(), true, "TEXT", null, quote, null)
+            );
+
+            inputField.clear();
+            clearQuote();
+            resetDecorators();
+            refreshMessages();
+            updateChatList();
+
+            showAlert("Отправлено в " + selected.size() + " чат(а): " + String.join(", ", selected));
+        });
+    }
+
+    // ── Применяем декораторы ──────────────────────────────────
+    private String applyDecorators(String content, String sender) {
+        messenger.decorator.Message msg = new SimpleMessage(content, sender);
+        if (isEncrypted) msg = new EncryptedMessageDecorator(msg);
+        if (isImportant) msg = new ImportantMessageDecorator(msg);
+        return msg.getContent();
+    }
+
+    // ── 1. Текст — через Facade + Decorator ───────────────────
     private void sendMessage() {
         String text = inputField.getText().trim();
         if (text.isEmpty()) return;
 
-        // Factory Method
-        new TextMessageCreator().factoryMethod(text);
-
-        // Builder — собираем с цитатой если есть
-        ConcreteMessageBuilder builder = new ConcreteMessageBuilder();
         String quote = quotedMessage != null ? quotedMessage.sender + ": " + quotedMessage.text : null;
-        new MessageDirector(builder).construct("Вы", text, quote, null, null);
+        String decoratedText = applyDecorators(text, "Вы");
+        ComplexMessage msg = facade.sendText("Вы", decoratedText, quote);
 
         chatHistory.get(selectedChat).add(
-                new ChatMessage("Вы", text, true, "TEXT", null, quote, null)
+                new ChatMessage("Вы", msg.getText(), true, "TEXT", null, quote, null)
         );
 
         inputField.clear();
         clearQuote();
+        resetDecorators();
         refreshMessages();
         updateChatList();
     }
 
-    // ── 2. Фото/видео + подпись — Builder + Factory Method ────
+    // ── 2. Файл — через Facade + Decorator ───────────────────
     private void sendFileMessage(String type) {
         FileChooser chooser = new FileChooser();
         if (type.equals("IMAGE")) {
@@ -319,41 +494,29 @@ public class MessengerWindow extends Application {
         File file = chooser.showOpenDialog(scene.getWindow());
         if (file == null) return;
 
-        // Запрашиваем подпись
         TextInputDialog captionDialog = new TextInputDialog();
         captionDialog.setTitle("Подпись");
         captionDialog.setHeaderText(null);
         captionDialog.setContentText("Добавить подпись (необязательно):");
         String caption = captionDialog.showAndWait().orElse("").trim();
 
-        // Factory Method
-        MessageCreator creator = type.equals("IMAGE")
-                ? new ImageMessageCreator()
-                : new VideoMessageCreator();
-        creator.factoryMethod(file.getAbsolutePath());
-
-        // Builder — файл + подпись + цитата если есть
-        ConcreteMessageBuilder builder = new ConcreteMessageBuilder();
         String quote = quotedMessage != null ? quotedMessage.sender + ": " + quotedMessage.text : null;
-        new MessageDirector(builder).construct(
-                "Вы",
-                caption.isEmpty() ? file.getName() : caption,
-                quote,
-                file.getAbsolutePath(),
-                null
-        );
-        ComplexMessage complex = builder.getResult();
+        String rawCaption = caption.isEmpty() ? file.getName() : caption;
+        String decoratedCaption = applyDecorators(rawCaption, "Вы");
+
+        ComplexMessage complex = facade.sendFile("Вы", decoratedCaption, file.getAbsolutePath(), type, quote);
 
         chatHistory.get(selectedChat).add(
                 new ChatMessage("Вы", complex.getText(), true, type, file.getAbsolutePath(), quote, null)
         );
 
         clearQuote();
+        resetDecorators();
         refreshMessages();
         updateChatList();
     }
 
-    // ── 3. Геолокация — Builder ───────────────────────────────
+    // ── 3. Геолокация ─────────────────────────────────────────
     private void sendLocationMessage() {
         TextInputDialog dialog = new TextInputDialog("53.9045,27.5615");
         dialog.setTitle("Геолокация");
@@ -363,35 +526,39 @@ public class MessengerWindow extends Application {
         dialog.showAndWait().ifPresent(coords -> {
             if (coords.trim().isEmpty()) return;
 
-            // Builder — текст + геолокация
-            ConcreteMessageBuilder builder = new ConcreteMessageBuilder();
             String quote = quotedMessage != null ? quotedMessage.sender + ": " + quotedMessage.text : null;
-            new MessageDirector(builder).construct("Вы", "📍 " + coords, quote, null, coords);
+            ComplexMessage msg = facade.sendLocation("Вы", coords, quote);
 
             chatHistory.get(selectedChat).add(
-                    new ChatMessage("Вы", "📍 " + coords, true, "TEXT", null, quote, coords)
+                    new ChatMessage("Вы", msg.getText(), true, "TEXT", null, quote, coords)
             );
 
             clearQuote();
+            resetDecorators();
             refreshMessages();
             updateChatList();
         });
     }
 
-    // ── 4. Ответить с цитатой — Builder ──────────────────────
+    // ── Сбрасываем декораторы ─────────────────────────────────
+    private void resetDecorators() {
+        isImportant = false;
+        isEncrypted = false;
+        importantBtn.getStyleClass().remove("type-btn-active");
+        encryptedBtn.getStyleClass().remove("type-btn-active");
+    }
+
+    // ── 4. Ответить с цитатой ─────────────────────────────────
     private void replyToSelected() {
         if (selectedMessages.isEmpty()) return;
 
-        // Берём первое выделенное
         ChatMessage toQuote = selectedMessages.iterator().next();
         quotedMessage = toQuote;
 
-        // Снимаем выделение
         selectedBubbles.values().forEach(b -> b.getStyleClass().remove("bubble-selected"));
         selectedMessages.clear();
         selectedBubbles.clear();
 
-        // Показываем плашку цитаты над полем ввода
         showQuoteBar(toQuote);
         inputField.requestFocus();
     }
@@ -425,7 +592,7 @@ public class MessengerWindow extends Application {
         }
     }
 
-    // ── 5. Пересылка — Prototype ──────────────────────────────
+    // ── 5. Пересылка — Prototype через Facade ─────────────────
     private void forwardMessage() {
         List<ChatMessage> toForward = selectedMessages.isEmpty()
                 ? chatHistory.get(selectedChat).isEmpty()
@@ -446,10 +613,8 @@ public class MessengerWindow extends Application {
 
         dialog.showAndWait().ifPresent(targetChat -> {
             for (ChatMessage msg : toForward) {
-                messenger.prototype.TextMessage proto =
-                        new messenger.prototype.TextMessage(msg.text, msg.sender, selectedChat);
-                MessageForwarder forwarder = new MessageForwarder(proto);
-                messenger.prototype.Message forwarded = forwarder.forward(targetChat);
+                messenger.prototype.Message forwarded =
+                        facade.forwardMessage(msg.text, msg.sender, selectedChat, targetChat);
 
                 chatHistory.get(targetChat).add(
                         new ChatMessage("⤷ " + msg.sender, forwarded.getContent(), false, msg.type, msg.filePath, null, msg.location)
@@ -546,14 +711,12 @@ public class MessengerWindow extends Application {
         bubble.setPadding(new Insets(8, 12, 8, 12));
         bubble.setMaxWidth(320);
 
-        // Имя отправителя (для чужих)
         if (!msg.isOwn) {
             Label sender = new Label(msg.sender);
             sender.getStyleClass().add("bubble-sender");
             bubble.getChildren().add(sender);
         }
 
-        // Цитата если есть
         if (msg.quote != null) {
             HBox quoteBox = new HBox();
             quoteBox.setStyle("-fx-background-color: rgba(0,0,0,0.1); -fx-background-radius: 6; -fx-padding: 4 8 4 8;");
@@ -566,10 +729,11 @@ public class MessengerWindow extends Application {
             bubble.getChildren().add(quoteBox);
         }
 
-        // Изображение — миниатюра
         if (msg.type.equals("IMAGE") && msg.filePath != null) {
             try {
-                Image image = new Image(new File(msg.filePath).toURI().toString(), 280, 200, true, true);
+                // Proxy
+                ImageLoaderProxy proxy = new ImageLoaderProxy(msg.filePath);
+                Image image = proxy.getImage();
                 ImageView imageView = new ImageView(image);
                 imageView.setFitWidth(280);
                 imageView.setPreserveRatio(true);
@@ -584,7 +748,6 @@ public class MessengerWindow extends Application {
                 bubble.getChildren().add(caption);
             }
 
-            // Видео — нажать для воспроизведения
         } else if (msg.type.equals("VIDEO") && msg.filePath != null) {
             HBox videoRow = new HBox(8);
             videoRow.setAlignment(Pos.CENTER_LEFT);
@@ -603,7 +766,6 @@ public class MessengerWindow extends Application {
             bubble.getChildren().add(videoRow);
             videoRow.setOnMouseClicked(e -> { e.consume(); openVideoPlayer(msg.filePath, msg.text); });
 
-            // Геолокация
         } else if (msg.location != null) {
             VBox geoBox = new VBox(2);
             Label geoLabel = new Label("📍 " + msg.location);
@@ -615,7 +777,6 @@ public class MessengerWindow extends Application {
             geoBox.getChildren().addAll(geoLabel, geoHint);
             bubble.getChildren().add(geoBox);
 
-            // Обычный текст
         } else {
             Label text = new Label(msg.text);
             text.getStyleClass().add("bubble-text");
@@ -623,7 +784,6 @@ public class MessengerWindow extends Application {
             bubble.getChildren().add(text);
         }
 
-        // Клик — мульти-выделение
         bubble.setOnMouseClicked(e -> {
             if (selectedMessages.contains(msg)) {
                 selectedMessages.remove(msg);
@@ -644,7 +804,7 @@ public class MessengerWindow extends Application {
     private void updateChatList() {
         chatList.getChildren().clear();
         for (String chat : chats) chatList.getChildren().add(buildChatItem(chat));
-        statusBar.setText("● " + wsManager.getConnectionCount() + " онлайн");
+        statusBar.setText("● " + facade.getOnlineCount() + " онлайн");
     }
 
     private void showAlert(String message) {
@@ -653,7 +813,6 @@ public class MessengerWindow extends Application {
         alert.showAndWait();
     }
 
-    // ── Внутренний класс сообщения ────────────────────────────
     static class ChatMessage {
         final String sender, text, type, filePath, quote, location;
         final boolean isOwn;

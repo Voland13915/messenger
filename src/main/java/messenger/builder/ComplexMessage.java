@@ -13,6 +13,12 @@ public class ComplexMessage {
     public void setQuote(String quotedText)     { this.quotedText = quotedText; }
     public void setLocation(String coordinates) { this.location = coordinates; }
 
+    public String getText()       { return text; }
+    public String getSender()     { return sender; }
+    public String getAttachment() { return attachmentUrl; }
+    public String getQuote()      { return quotedText; }
+    public String getLocation()   { return location; }
+
     @Override
     public String toString() {
         return "ComplexMessage{" +
@@ -23,7 +29,4 @@ public class ComplexMessage {
                 ", location='"  + location      + '\'' +
                 '}';
     }
-
-    public String getText() { return text; }
 }
-
