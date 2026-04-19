@@ -1,0 +1,115 @@
+/* ── Общие ── */
+.root { -fx-font-family: "Segoe UI", sans-serif; -fx-font-size: 13px; }
+
+/* ── Левая панель ── */
+.left-panel       { -fx-background-color: #F7F7F8; -fx-border-color: #E0E0E5; -fx-border-width: 0 1 0 0; }
+.left-header      { -fx-background-color: #F7F7F8; }
+.left-title       { -fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #1A1A2E; }
+.status-bar       { -fx-text-fill: #4CAF50; -fx-font-size: 11px; }
+.chat-scroll      { -fx-background-color: transparent; -fx-background: transparent; }
+.chat-scroll .viewport { -fx-background-color: transparent; }
+
+/* ── Элемент чата ── */
+.chat-item          { -fx-background-color: transparent; -fx-cursor: hand; }
+.chat-item:hover    { -fx-background-color: #ECECF0; }
+.chat-item-selected { -fx-background-color: #E3E3F0; }
+.chat-name          { -fx-font-weight: bold; -fx-text-fill: #1A1A2E; -fx-font-size: 13px; }
+.chat-last          { -fx-text-fill: #888899; -fx-font-size: 11px; }
+
+/* ── Аватар ── */
+.avatar-circle   { -fx-fill: #7C83FD; }
+.avatar-initials { -fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px; }
+
+/* ── Правая панель ── */
+.right-panel    { -fx-background-color: #FFFFFF; }
+.chat-header    { -fx-background-color: #FFFFFF; -fx-border-color: #E0E0E5; -fx-border-width: 0 0 1 0; }
+.chat-title     { -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1A1A2E; }
+.message-area   { -fx-background-color: #F0F0F5; }
+.message-scroll { -fx-background-color: #F0F0F5; -fx-background: #F0F0F5; }
+.message-scroll .viewport { -fx-background-color: #F0F0F5; }
+
+/* ── Пузырьки ── */
+.bubble-own   { -fx-background-color: #7C83FD; -fx-background-radius: 16 16 4 16; }
+.bubble-other { -fx-background-color: #FFFFFF; -fx-background-radius: 16 16 16 4; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 4, 0, 0, 1); }
+.bubble-text  { -fx-text-fill: #1A1A2E; -fx-font-size: 13px; }
+.bubble-own .bubble-text { -fx-text-fill: #FFFFFF; }
+.bubble-sender { -fx-text-fill: #7C83FD; -fx-font-size: 11px; -fx-font-weight: bold; }
+
+/* ── Ввод ── */
+.input-panel  { -fx-background-color: #FFFFFF; -fx-border-color: #E0E0E5; -fx-border-width: 1 0 0 0; }
+.input-field  { -fx-background-color: #F0F0F5; -fx-background-radius: 20; -fx-border-radius: 20; -fx-border-color: transparent; -fx-padding: 8 14 8 14; -fx-text-fill: #1A1A2E; }
+.input-field:focused { -fx-border-color: #7C83FD; }
+
+/* ── Кнопка «⊕» прикрепить ── */
+.attach-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #7C83FD;
+    -fx-font-size: 22px;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-width: 32;
+    -fx-min-height: 32;
+}
+.attach-btn:hover { -fx-text-fill: #5A61DD; }
+
+/* ── Кнопка «⋯» дополнительно ── */
+.more-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #888899;
+    -fx-font-size: 16px;
+    -fx-cursor: hand;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-width: 28;
+    -fx-min-height: 32;
+}
+.more-btn:hover { -fx-text-fill: #7C83FD; }
+
+/* ── Кнопка отправки ── */
+.send-btn       { -fx-background-color: #7C83FD; -fx-text-fill: white; -fx-background-radius: 50; -fx-min-width: 36; -fx-min-height: 36; -fx-cursor: hand; -fx-font-size: 14px; }
+.send-btn:hover { -fx-background-color: #6670F0; }
+
+/* ── Кнопка темы ── */
+.theme-btn       { -fx-background-color: transparent; -fx-text-fill: #888899; -fx-border-color: transparent; -fx-font-size: 18px; -fx-cursor: hand; -fx-padding: 0; }
+.theme-btn:hover { -fx-text-fill: #7C83FD; }
+
+/* ── Контекстная панель (Ответить / Переслать) ── */
+.context-bar      { -fx-background-color: #EEF0FF; -fx-border-color: #7C83FD; -fx-border-width: 0 0 0 3; }
+.context-bar-hint { -fx-text-fill: #555577; -fx-font-size: 12px; }
+
+.context-action-btn {
+    -fx-background-color: #7C83FD;
+    -fx-text-fill: white;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-cursor: hand;
+    -fx-font-size: 12px;
+    -fx-padding: 5 10 5 10;
+}
+.context-action-btn:hover { -fx-background-color: #6670F0; }
+
+/* ── Выделение пузырька ── */
+.bubble-selected { -fx-border-color: #7C83FD; -fx-border-width: 2; -fx-border-radius: 16; }
+
+/* ── Цитата ── */
+.quote-bar      { -fx-background-color: #EEF0FF; -fx-border-color: #7C83FD; -fx-border-width: 0 0 0 3; }
+.quote-bar-text { -fx-text-fill: #555577; -fx-font-size: 12px; }
+
+.popup-menu {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0E0E5;
+    -fx-border-width: 1;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.15), 12, 0, 0, 4);
+    -fx-min-width: 200;
+}
+.popup-item { -fx-cursor: hand; -fx-background-color: transparent; }
+.popup-item-hover { -fx-background-color: #F0F0F8; }
+.popup-item-icon { -fx-font-size: 13px; -fx-text-fill: #7C83FD; }
+.popup-item-text { -fx-font-size: 13px; -fx-text-fill: #1A1A2E; }
+.popup-separator { -fx-background-color: #E0E0E5; }
+
+.popup-item-check  { -fx-font-size: 12px; -fx-text-fill: #7C83FD; }
+.popup-item-active { -fx-background-color: #F0F0FB; }

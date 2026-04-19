@@ -8,28 +8,19 @@ public class MessengerApp_1 {
         System.out.println("║   МЕССЕНДЖЕР — порождающие паттерны              ║");
         System.out.println("╚══════════════════════════════════════════════════╝");
 
-        // ── 1. SINGLETON ────────────────────────────────────
+        // ── 1. SINGLETON ────────────────────────────────────────────────
         System.out.println("\n━━━ 1. SINGLETON — WebSocketManager ━━━━━━━━━━━━━━");
 
         messenger.singleton.WebSocketManager ws1 = messenger.singleton.WebSocketManager.getInstance();
         messenger.singleton.WebSocketManager ws2 = messenger.singleton.WebSocketManager.getInstance();
         System.out.println("  ws1 и ws2 — один и тот же объект: " + (ws1 == ws2));
 
-        ws1.start();
-        System.out.println("  Сервер запущен: " + ws1.isRunning());
+        // Новый WebSocketManager работает с реальным сокетом,
+        // поэтому для демонстрации паттерна выводим факт единственности
+        System.out.println("  Singleton гарантирует один экземпляр на всё приложение.");
+        System.out.println("  Подключение к серверу происходит через UI (MessengerWindow).");
 
-        ws1.connect("alice");
-        ws1.connect("bob");
-        ws1.connect("charlie");
-        System.out.println("  Подключились: alice, bob, charlie");
-        System.out.println("  Соединений через ws1: " + ws1.getConnectionCount());
-        System.out.println("  Соединений через ws2: " + ws2.getConnectionCount()
-                + "  ← тот же список, один объект");
-
-        ws1.disconnect("charlie");
-        System.out.println("  Charlie отключился → соединений: " + ws1.getConnectionCount());
-
-        // ── 2. FACTORY METHOD ───────────────────────────────
+        // ── 2. FACTORY METHOD ───────────────────────────────────────────
         System.out.println("\n━━━ 2. FACTORY METHOD — типы сообщений ━━━━━━━━━━━");
         System.out.println("  sendMessage() одинаковый, Creator решает что создать:\n");
 
@@ -37,7 +28,7 @@ public class MessengerApp_1 {
         new messenger.factorymethod.ImageMessageCreator().sendMessage("https://cdn.example.com/photo.jpg");
         new messenger.factorymethod.VideoMessageCreator().sendMessage("https://cdn.example.com/video.mp4");
 
-        // ── 3. ABSTRACT FACTORY ─────────────────────────────
+        // ── 3. ABSTRACT FACTORY ─────────────────────────────────────────
         System.out.println("\n━━━ 3. ABSTRACT FACTORY — темы оформления ━━━━━━━━");
         System.out.println("  Фабрика гарантирует что все элементы одной темы:\n");
 
@@ -51,7 +42,7 @@ public class MessengerApp_1 {
                 new messenger.abstractfactory.MessengerUI(new messenger.abstractfactory.DarkThemeFactory());
         darkUI.renderUI();
 
-        // ── 4. BUILDER ──────────────────────────────────────
+        // ── 4. BUILDER ──────────────────────────────────────────────────
         System.out.println("\n━━━ 4. BUILDER — составное сообщение ━━━━━━━━━━━━━");
         System.out.println("  Простое сообщение (только текст):\n");
 
@@ -68,7 +59,7 @@ public class MessengerApp_1 {
         );
         System.out.println("  " + builder2.getResult());
 
-        // ── 5. PROTOTYPE ────────────────────────────────────
+        // ── 5. PROTOTYPE ────────────────────────────────────────────────
         System.out.println("\n━━━ 5. PROTOTYPE — пересылка сообщений ━━━━━━━━━━━");
         System.out.println("  Клонируем сообщение и меняем только chatId:\n");
 
