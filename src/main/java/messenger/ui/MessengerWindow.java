@@ -194,17 +194,22 @@ public class MessengerWindow extends Application implements MessengerObserver {
             }
 
             case USER_JOINED: {
+                String myName = wsManager.getMyUsername();
                 if (data instanceof List) {
                     @SuppressWarnings("unchecked")
                     List<String> users = (List<String>) data;
                     for (String user : users)
-                        if (!chatHistory.containsKey(user))
+                        if (!user.equals(myName) && !chatHistory.containsKey(user))
                             chatHistory.put(user, FXCollections.observableArrayList());
-                    if (selectedChat == null && !chatHistory.isEmpty())
-                        selectedChat = chatHistory.keySet().iterator().next();
+                    // selectedChat — первый чужой пользователь
+                    if (selectedChat == null)
+                        chatHistory.keySet().stream()
+                                .filter(u -> !u.equals(myName))
+                                .findFirst()
+                                .ifPresent(u -> selectedChat = u);
                 } else {
                     String user = (String) data;
-                    if (!chatHistory.containsKey(user))
+                    if (!user.equals(myName) && !chatHistory.containsKey(user))
                         chatHistory.put(user, FXCollections.observableArrayList());
                 }
                 if (chatList != null) updateChatList();
@@ -230,17 +235,27 @@ public class MessengerWindow extends Application implements MessengerObserver {
             String msgType  = json.optString("msgType", "TEXT");
             String filePath = json.has("filePath") ? json.getString("filePath") : null;
             String location = json.has("location") ? json.getString("location") : null;
+            String quote    = json.has("quote")    ? json.getString("quote")    : null;
             String to       = json.optString("to", "all");
+            String myName   = wsManager.getMyUsername();
 
-            boolean isOwn  = from.equals(wsManager.getMyUsername());
-            String chatKey = isOwn ? to : from;
+            // Игнорируем эхо собственных сообщений —
+            // они уже добавлены в историю в sendMessage() / sendFileMessage() и т.д.
+            if (from.equals(myName)) return;
+
+            // Определяем ключ чата: для входящих — имя отправителя
+            String chatKey = from;
+
+            // Не добавляем чат с самим собой
+            if (chatKey.equals(myName)) return;
 
             if (!chatHistory.containsKey(chatKey))
                 chatHistory.put(chatKey, FXCollections.observableArrayList());
 
+            // Сохраняем quote — получатель увидит на какое сообщение был ответ
             chatHistory.get(chatKey).add(new ChatMessage(
-                    isOwn ? "Вы" : from, text, isOwn,
-                    msgType, filePath, null, location, null));
+                    from, text, false,
+                    msgType, filePath, quote, location, null));
 
             if (chatKey.equals(selectedChat)) refreshMessages();
             updateChatList();
@@ -478,7 +493,7 @@ public class MessengerWindow extends Application implements MessengerObserver {
     private void sendMessage() {
         String text = inputField.getText().trim();
         String quote = quotedMessage != null
-                ? quotedMessage.sender + ": " + quotedMessage.text : null;
+                ? buildQuoteString(quotedMessage) : null;
         String decorated = applyDecorators(text, "Вы");
 
         // Chain of Responsibility: валидация перед отправкой
@@ -487,11 +502,11 @@ public class MessengerWindow extends Application implements MessengerObserver {
         ValidationResult chainResult = validationChain.handleRequest(req);
         if (!chainResult.isValid()) { showAlert(chainResult.getReason()); return; }
 
-        // Strategy: Client конфигурирует Context нужным алгоритмом
+        // Strategy: только выбирает алгоритм, НЕ отправляет сам
         messageSender.setStrategy(new TextSendStrategy(facade, wsManager));
-        messageSender.send(SendContext.forText(selectedChat, decorated, quote));
 
-        // Command: Invoker сохраняет команду в историю
+        // Command: единственная точка отправки — invoker вызывает execute()
+        // SendTextCommand внутри вызывает wsManager.send() один раз
         invoker.invoke(new SendTextCommand(facade, wsManager, selectedChat, decorated, quote));
 
         // State: создаём контекст состояния для нового сообщения
@@ -522,7 +537,7 @@ public class MessengerWindow extends Application implements MessengerObserver {
         dlg.setTitle("Подпись"); dlg.setHeaderText(null); dlg.setContentText("Подпись:");
         String caption = dlg.showAndWait().orElse("").trim();
         String quote   = quotedMessage != null
-                ? quotedMessage.sender + ": " + quotedMessage.text : null;
+                ? buildQuoteString(quotedMessage) : null;
         String text    = applyDecorators(caption.isEmpty() ? file.getName() : caption, "Вы");
 
         // Chain: валидация подписи
@@ -530,12 +545,10 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 new ValidationRequest(text, selectedChat, wsManager.isConnected()));
         if (!chainResult.isValid()) { showAlert(chainResult.getReason()); return; }
 
-        // Strategy: алгоритм отправки файла
+        // Strategy: только выбирает алгоритм
         messageSender.setStrategy(new FileSendStrategy(facade, wsManager));
-        messageSender.send(SendContext.forFile(
-                selectedChat, text, file.getAbsolutePath(), type, quote));
 
-        // Command
+        // Command: единственная точка отправки
         invoker.invoke(new SendFileCommand(
                 facade, wsManager, selectedChat, text, file.getAbsolutePath(), type, quote));
 
@@ -557,18 +570,17 @@ public class MessengerWindow extends Application implements MessengerObserver {
         dlg.showAndWait().ifPresent(coords -> {
             if (coords.trim().isEmpty()) return;
             String quote = quotedMessage != null
-                    ? quotedMessage.sender + ": " + quotedMessage.text : null;
+                    ? buildQuoteString(quotedMessage) : null;
 
             // Chain
             ValidationResult chainResult = validationChain.handleRequest(
                     new ValidationRequest(coords, selectedChat, wsManager.isConnected()));
             if (!chainResult.isValid()) { showAlert(chainResult.getReason()); return; }
 
-            // Strategy
+            // Strategy: только выбирает алгоритм
             messageSender.setStrategy(new LocationSendStrategy(facade, wsManager));
-            messageSender.send(SendContext.forLocation(selectedChat, coords, quote));
 
-            // Command
+            // Command: единственная точка отправки
             invoker.invoke(new SendLocationCommand(
                     facade, wsManager, selectedChat, coords, quote));
 
@@ -628,17 +640,17 @@ public class MessengerWindow extends Application implements MessengerObserver {
             if (selected == null || selected.isEmpty()) return;
             String decorated = applyDecorators(text, "Вы");
             String quote     = quotedMessage != null
-                    ? quotedMessage.sender + ": " + quotedMessage.text : null;
+                    ? buildQuoteString(quotedMessage) : null;
 
             // Composite: рассылаем через дерево получателей
             RecipientGroup group = new RecipientGroup("Рассылка");
             for (String name : selected) group.add(new SingleRecipient(name));
             group.send(decorated);
 
-            // Strategy + Command для каждого получателя
+            // Strategy: только выбирает алгоритм (демонстрация паттерна)
             messageSender.setStrategy(new TextSendStrategy(facade, wsManager));
             for (Recipient member : group.getMembers()) {
-                messageSender.send(SendContext.forText(member.getName(), decorated, quote));
+                // Command: единственная точка отправки для каждого члена группы
                 invoker.invoke(new SendTextCommand(
                         facade, wsManager, member.getName(), decorated, quote));
 
@@ -669,16 +681,53 @@ public class MessengerWindow extends Application implements MessengerObserver {
         clearSelection(); showQuoteBar(quotedMessage); inputField.requestFocus();
     }
 
+    /** Формирует строку цитаты: "Имя: текст" — для хранения в ChatMessage.quote */
+    private String buildQuoteString(ChatMessage msg) {
+        String preview;
+        if (msg.type.equals("IMAGE"))      preview = "🖼 Фотография";
+        else if (msg.type.equals("VIDEO")) preview = "▶ Видео";
+        else if (msg.location != null)     preview = "📍 Геолокация";
+        else preview = msg.text.length() > 80 ? msg.text.substring(0, 80) + "…" : msg.text;
+        return msg.sender + ": " + preview;
+    }
+
     private void showQuoteBar(ChatMessage msg) {
         clearQuote();
-        quoteBar = new HBox(8); quoteBar.getStyleClass().add("quote-bar");
-        quoteBar.setPadding(new Insets(6, 12, 6, 12)); quoteBar.setAlignment(Pos.CENTER_LEFT);
-        Label ql = new Label("↩  " + msg.sender + ": " + msg.text);
-        ql.getStyleClass().add("quote-bar-text"); ql.setMaxWidth(500);
-        HBox.setHgrow(ql, Priority.ALWAYS);
+        quoteBar = new HBox(0); quoteBar.getStyleClass().add("quote-bar");
+        quoteBar.setAlignment(Pos.CENTER_LEFT);
+
+        // Вертикальная полоса
+        javafx.scene.layout.Region stripe = new javafx.scene.layout.Region();
+        stripe.setMinWidth(3); stripe.setMaxWidth(3); stripe.setMinHeight(36);
+        stripe.setStyle("-fx-background-color:#7C83FD;");
+
+        // Текст цитаты — имя и содержимое
+        VBox textBox = new VBox(1);
+        textBox.setPadding(new Insets(4, 0, 4, 10));
+        HBox.setHgrow(textBox, Priority.ALWAYS);
+
+        Label senderLbl = new Label("↩  " + msg.sender);
+        senderLbl.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#7C83FD;");
+
+        // Для фото/видео показываем тип вместо имени файла
+        String previewText;
+        if (msg.type.equals("IMAGE"))    previewText = "🖼 Фотография";
+        else if (msg.type.equals("VIDEO")) previewText = "▶ Видео";
+        else if (msg.location != null)   previewText = "📍 Геолокация";
+        else previewText = msg.text.length() > 60 ? msg.text.substring(0, 60) + "…" : msg.text;
+
+        Label textLbl = new Label(previewText);
+        textLbl.getStyleClass().add("quote-bar-text");
+        textLbl.setMaxWidth(480);
+
+        textBox.getChildren().addAll(senderLbl, textLbl);
+
         Button cancel = new Button("✕"); cancel.getStyleClass().add("theme-btn");
+        cancel.setPadding(new Insets(0, 12, 0, 8));
         cancel.setOnAction(e -> clearQuote());
-        quoteBar.getChildren().addAll(ql, cancel);
+
+        quoteBar.getChildren().addAll(stripe, textBox, cancel);
+        quoteBar.setPadding(new Insets(4, 4, 4, 12));
         inputContainer.getChildren().add(0, quoteBar);
     }
 
@@ -700,19 +749,32 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 : new ArrayList<>(selectedMessages);
         if (toForward.isEmpty()) return;
 
+        String myName = wsManager.getMyUsername();
         List<String> targets = chatHistory.keySet().stream()
-                .filter(c -> !c.equals(selectedChat)).collect(Collectors.toList());
+                .filter(c -> !c.equals(selectedChat) && !c.equals(myName))
+                .collect(Collectors.toList());
         if (targets.isEmpty()) { showAlert("Нет других чатов"); return; }
 
         ChoiceDialog<String> dlg = new ChoiceDialog<>(targets.get(0), targets);
         dlg.setTitle("Переслать"); dlg.setHeaderText(null); dlg.setContentText("Чат:");
         dlg.showAndWait().ifPresent(target -> {
             for (ChatMessage msg : toForward) {
-                // Command: каждое сообщение — отдельная команда
+                // Command: передаём полный тип сообщения (TEXT/IMAGE/VIDEO + filePath + location)
                 invoker.invoke(new ForwardCommand(
-                        facade, wsManager, msg.text, msg.sender, selectedChat, target));
+                        facade, wsManager,
+                        msg.text, msg.sender, selectedChat, target,
+                        msg.type, msg.filePath, msg.location));
+
+                // Добавляем в локальную историю сразу — не ждём эхо от сервера
+                if (!chatHistory.containsKey(target))
+                    chatHistory.put(target, FXCollections.observableArrayList());
+                chatHistory.get(target).add(new ChatMessage(
+                        "⤷ " + msg.sender, msg.text, true,
+                        msg.type, msg.filePath, null, msg.location, null));
             }
-            clearSelection(); showAlert("Переслано " + toForward.size() + " сообщ. в: " + target);
+            clearSelection();
+            if (target.equals(selectedChat)) refreshMessages();
+            showAlert("Переслано " + toForward.size() + " сообщ. в: " + target);
             updateChatList();
         });
     }
@@ -783,13 +845,54 @@ public class MessengerWindow extends Application implements MessengerObserver {
         }
 
         if (msg.quote != null) {
-            HBox qb = new HBox();
-            qb.setStyle("-fx-background-color:rgba(0,0,0,0.1);" +
-                    "-fx-background-radius:6;-fx-padding:4 8 4 8;");
-            Label ql = new Label("↩ " + msg.quote);
-            ql.setStyle("-fx-font-size:11px;-fx-opacity:0.8;");
-            ql.getStyleClass().add("bubble-text"); ql.setWrapText(true); ql.setMaxWidth(260);
-            qb.getChildren().add(ql); bubble.getChildren().add(qb);
+            // Цитата — стиль Telegram: вертикальная полоса + имя + текст
+            // msg.quote формат: "Имя: текст"
+            String quoteContent = msg.quote;
+            String quoteSender  = "";
+            String quoteText    = quoteContent;
+            int colonIdx = quoteContent.indexOf(": ");
+            if (colonIdx > 0) {
+                quoteSender = quoteContent.substring(0, colonIdx);
+                quoteText   = quoteContent.substring(colonIdx + 2);
+            }
+
+            // Внешний контейнер с левой полосой
+            HBox quoteOuter = new HBox(0);
+            quoteOuter.setMaxWidth(280);
+            quoteOuter.setStyle("-fx-background-radius:6; -fx-cursor:default;");
+
+            // Вертикальная полоса
+            javafx.scene.layout.Region stripe = new javafx.scene.layout.Region();
+            stripe.setMinWidth(3); stripe.setMaxWidth(3);
+            stripe.setStyle(msg.isOwn
+                    ? "-fx-background-color: rgba(255,255,255,0.7); -fx-background-radius:3 0 0 3;"
+                    : "-fx-background-color: #7C83FD; -fx-background-radius:3 0 0 3;");
+
+            // Текстовая часть цитаты
+            VBox quoteInner = new VBox(2);
+            quoteInner.setPadding(new Insets(4, 8, 4, 7));
+            quoteInner.setStyle(msg.isOwn
+                    ? "-fx-background-color: rgba(255,255,255,0.15); -fx-background-radius:0 6 6 0;"
+                    : "-fx-background-color: rgba(124,131,253,0.12); -fx-background-radius:0 6 6 0;");
+
+            if (!quoteSender.isEmpty()) {
+                Label senderLbl = new Label(quoteSender);
+                senderLbl.setStyle(msg.isOwn
+                        ? "-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:rgba(255,255,255,0.9);"
+                        : "-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#7C83FD;");
+                quoteInner.getChildren().add(senderLbl);
+            }
+
+            Label textLbl = new Label(quoteText);
+            textLbl.setStyle(msg.isOwn
+                    ? "-fx-font-size:11px; -fx-text-fill:rgba(255,255,255,0.75);"
+                    : "-fx-font-size:11px; -fx-text-fill:#555577;");
+            textLbl.setWrapText(true);
+            textLbl.setMaxWidth(240);
+            quoteInner.getChildren().add(textLbl);
+
+            quoteOuter.getChildren().addAll(stripe, quoteInner);
+            bubble.getChildren().add(quoteOuter);
         }
 
         if (msg.type.equals("IMAGE") && msg.filePath != null) {
@@ -858,9 +961,11 @@ public class MessengerWindow extends Application implements MessengerObserver {
 
     private void updateChatList() {
         if (chatList == null) return;
+        String myName = wsManager.getMyUsername();
         chatList.getChildren().clear();
         for (String chat : chatHistory.keySet())
-            chatList.getChildren().add(buildChatItem(chat));
+            if (!chat.equals(myName))   // не показываем чат с самим собой
+                chatList.getChildren().add(buildChatItem(chat));
         if (statusBar != null)
             statusBar.setText("● " + facade.getOnlineCount() + " онлайн");
     }

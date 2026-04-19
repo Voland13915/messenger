@@ -12,23 +12,19 @@ import messenger.singleton.WebSocketManager;
  */
 public class FileSendStrategy implements SendStrategy {
 
-    private final MessengerFacade  facade;
-    private final WebSocketManager wsManager;
+    private final MessengerFacade facade;
 
     public FileSendStrategy(MessengerFacade facade, WebSocketManager wsManager) {
-        this.facade    = facade;
-        this.wsManager = wsManager;
+        this.facade = facade;
     }
 
     @Override
     public String execute(SendContext context) {
-        // Алгоритм B: Factory Method выбирает тип (IMAGE/VIDEO) → WebSocket
+        // AlgorithmInterface(): только паттерны — Factory Method (IMAGE/VIDEO) + Builder
         facade.sendFile("Вы", context.getText(),
                 context.getFilePath(), context.getFileType(), context.getQuote());
-        wsManager.send(context.getRecipient(), context.getText(),
-                context.getFileType(), context.getFilePath(), null);
-        System.out.println("[FileSendStrategy] Файл [" + context.getFileType()
-                + "] отправлен: " + context.getText());
+        System.out.println("[FileSendStrategy] Алгоритм: Factory Method ["
+                + context.getFileType() + "] + Builder");
         return context.getText();
     }
 }

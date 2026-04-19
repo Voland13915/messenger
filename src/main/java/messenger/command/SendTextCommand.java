@@ -37,8 +37,8 @@ public class SendTextCommand implements MessageCommand {
     /** Execute() → receiver->Action() */
     @Override
     public void execute() {
-        facade.sendText("Вы", text, quote);   // Facade: Builder + Factory Method
-        wsManager.send(to, text);             // WebSocket: реальная доставка
+        facade.sendText("Вы", text, quote);                        // Facade: Builder + Factory Method
+        wsManager.send(to, text, "TEXT", null, null, quote);       // WebSocket: с цитатой
     }
 
     @Override

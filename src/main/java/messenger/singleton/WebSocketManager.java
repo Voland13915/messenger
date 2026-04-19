@@ -170,11 +170,16 @@ public class WebSocketManager {
     // ═══════════════════════════════════════════════════════
 
     public void send(String to, String text) {
-        send(to, text, "TEXT", null, null);
+        send(to, text, "TEXT", null, null, null);
     }
 
     public void send(String to, String text, String msgType,
                      String filePath, String location) {
+        send(to, text, msgType, filePath, location, null);
+    }
+
+    public void send(String to, String text, String msgType,
+                     String filePath, String location, String quote) {
         if (!connected) { System.err.println("[WS] Нет соединения"); return; }
         try {
             JSONObject json = new JSONObject();
@@ -184,6 +189,7 @@ public class WebSocketManager {
             json.put("msgType", msgType);
             if (filePath != null) json.put("filePath", filePath);
             if (location != null) json.put("location", location);
+            if (quote    != null) json.put("quote",    quote);
             client.send(json.toString());
         } catch (Exception e) { e.printStackTrace(); }
     }

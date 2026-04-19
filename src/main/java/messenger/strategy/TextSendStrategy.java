@@ -12,20 +12,19 @@ import messenger.singleton.WebSocketManager;
  */
 public class TextSendStrategy implements SendStrategy {
 
-    private final MessengerFacade  facade;
-    private final WebSocketManager wsManager;
+    private final MessengerFacade facade;
 
     public TextSendStrategy(MessengerFacade facade, WebSocketManager wsManager) {
-        this.facade    = facade;
-        this.wsManager = wsManager;
+        this.facade = facade;
+        // wsManager не используется в стратегии — отправка в Command
     }
 
     @Override
     public String execute(SendContext context) {
-        // Алгоритм A: Facade (Builder + Factory Method) → WebSocket
+        // AlgorithmInterface(): только паттерны — Factory Method + Builder через Facade
+        // Реальную отправку делает Command (wsManager.send вызывается там)
         facade.sendText("Вы", context.getText(), context.getQuote());
-        wsManager.send(context.getRecipient(), context.getText());
-        System.out.println("[TextSendStrategy] Текст отправлен: " + context.getText());
+        System.out.println("[TextSendStrategy] Алгоритм: Factory Method + Builder");
         return context.getText();
     }
 }

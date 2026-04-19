@@ -12,22 +12,17 @@ import messenger.singleton.WebSocketManager;
  */
 public class LocationSendStrategy implements SendStrategy {
 
-    private final MessengerFacade  facade;
-    private final WebSocketManager wsManager;
+    private final MessengerFacade facade;
 
     public LocationSendStrategy(MessengerFacade facade, WebSocketManager wsManager) {
-        this.facade    = facade;
-        this.wsManager = wsManager;
+        this.facade = facade;
     }
 
     @Override
     public String execute(SendContext context) {
-        // Алгоритм C: Builder строит geo-сообщение → WebSocket с coordinates
+        // AlgorithmInterface(): только паттерны — Builder с координатами
         facade.sendLocation("Вы", context.getCoordinates(), context.getQuote());
-        wsManager.send(context.getRecipient(), context.getText(),
-                "TEXT", null, context.getCoordinates());
-        System.out.println("[LocationSendStrategy] Геолокация отправлена: "
-                + context.getCoordinates());
+        System.out.println("[LocationSendStrategy] Алгоритм: Builder [geo]");
         return context.getText();
     }
 }
