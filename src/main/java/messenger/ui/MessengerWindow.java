@@ -693,6 +693,7 @@ public class MessengerWindow extends Application implements MessengerObserver {
 
     private void showQuoteBar(ChatMessage msg) {
         clearQuote();
+        quotedMessage = msg;  // восстанавливаем после clearQuote()
         quoteBar = new HBox(0); quoteBar.getStyleClass().add("quote-bar");
         quoteBar.setAlignment(Pos.CENTER_LEFT);
 
@@ -844,55 +845,53 @@ public class MessengerWindow extends Application implements MessengerObserver {
             bubble.getChildren().add(s);
         }
 
+        System.out.println("[DEBUG] msg.sender=" + msg.sender + " msg.quote=" + msg.quote + " msg.text=" + msg.text);
         if (msg.quote != null) {
-            // Цитата — стиль Telegram: вертикальная полоса + имя + текст
-            // msg.quote формат: "Имя: текст"
-            String quoteContent = msg.quote;
-            String quoteSender  = "";
-            String quoteText    = quoteContent;
-            int colonIdx = quoteContent.indexOf(": ");
-            if (colonIdx > 0) {
-                quoteSender = quoteContent.substring(0, colonIdx);
-                quoteText   = quoteContent.substring(colonIdx + 2);
+            // Парсим "Имя: текст"
+            String qContent = msg.quote;
+            String qSender  = "";
+            String qText    = qContent;
+            int ci = qContent.indexOf(": ");
+            if (ci > 0) {
+                qSender = qContent.substring(0, ci);
+                qText   = qContent.substring(ci + 2);
             }
 
-            // Внешний контейнер с левой полосой
-            HBox quoteOuter = new HBox(0);
-            quoteOuter.setMaxWidth(280);
-            quoteOuter.setStyle("-fx-background-radius:6; -fx-cursor:default;");
+            // Внешний HBox: [полоса | текстовый блок]
+            HBox qBox = new HBox(0);
+            qBox.setMaxWidth(Double.MAX_VALUE);
+            qBox.setStyle(msg.isOwn
+                    ? "-fx-background-color: rgba(255,255,255,0.2); -fx-background-radius:6;"
+                    : "-fx-background-color: rgba(124,131,253,0.15); -fx-background-radius:6;");
 
-            // Вертикальная полоса
-            javafx.scene.layout.Region stripe = new javafx.scene.layout.Region();
-            stripe.setMinWidth(3); stripe.setMaxWidth(3);
-            stripe.setStyle(msg.isOwn
-                    ? "-fx-background-color: rgba(255,255,255,0.7); -fx-background-radius:3 0 0 3;"
+            // Вертикальная цветная полоса
+            javafx.scene.layout.Region qStripe = new javafx.scene.layout.Region();
+            qStripe.setMinWidth(3); qStripe.setMaxWidth(3); qStripe.setMinHeight(36);
+            qStripe.setStyle(msg.isOwn
+                    ? "-fx-background-color: rgba(255,255,255,0.9); -fx-background-radius:3 0 0 3;"
                     : "-fx-background-color: #7C83FD; -fx-background-radius:3 0 0 3;");
 
-            // Текстовая часть цитаты
-            VBox quoteInner = new VBox(2);
-            quoteInner.setPadding(new Insets(4, 8, 4, 7));
-            quoteInner.setStyle(msg.isOwn
-                    ? "-fx-background-color: rgba(255,255,255,0.15); -fx-background-radius:0 6 6 0;"
-                    : "-fx-background-color: rgba(124,131,253,0.12); -fx-background-radius:0 6 6 0;");
+            // Текстовая часть — растягивается на всю оставшуюся ширину
+            VBox qTextBox = new VBox(2);
+            qTextBox.setPadding(new Insets(4, 8, 4, 8));
+            HBox.setHgrow(qTextBox, Priority.ALWAYS);
 
-            if (!quoteSender.isEmpty()) {
-                Label senderLbl = new Label(quoteSender);
-                senderLbl.setStyle(msg.isOwn
-                        ? "-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:rgba(255,255,255,0.9);"
+            if (!qSender.isEmpty()) {
+                Label qSenderLbl = new Label(qSender);
+                qSenderLbl.setStyle(msg.isOwn
+                        ? "-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:rgba(255,255,255,0.95);"
                         : "-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#7C83FD;");
-                quoteInner.getChildren().add(senderLbl);
+                qTextBox.getChildren().add(qSenderLbl);
             }
-
-            Label textLbl = new Label(quoteText);
-            textLbl.setStyle(msg.isOwn
-                    ? "-fx-font-size:11px; -fx-text-fill:rgba(255,255,255,0.75);"
+            Label qTextLbl = new Label(qText);
+            qTextLbl.setStyle(msg.isOwn
+                    ? "-fx-font-size:11px; -fx-text-fill:rgba(255,255,255,0.8);"
                     : "-fx-font-size:11px; -fx-text-fill:#555577;");
-            textLbl.setWrapText(true);
-            textLbl.setMaxWidth(240);
-            quoteInner.getChildren().add(textLbl);
+            qTextLbl.setWrapText(true);
+            qTextBox.getChildren().add(qTextLbl);
 
-            quoteOuter.getChildren().addAll(stripe, quoteInner);
-            bubble.getChildren().add(quoteOuter);
+            qBox.getChildren().addAll(qStripe, qTextBox);
+            bubble.getChildren().add(qBox);
         }
 
         if (msg.type.equals("IMAGE") && msg.filePath != null) {
