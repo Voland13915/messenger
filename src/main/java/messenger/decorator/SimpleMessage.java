@@ -1,6 +1,5 @@
 package messenger.decorator;
 
-// ConcreteComponent
 public class SimpleMessage implements Message {
     private final String content;
     private final String sender;

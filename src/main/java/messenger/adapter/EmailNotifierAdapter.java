@@ -1,9 +1,7 @@
 package messenger.adapter;
 
-// Adapter — адаптирует ExternalEmailService к интерфейсу Notifier
 public class EmailNotifierAdapter implements Notifier {
 
-    // adaptee — ссылка на адаптируемый объект
     private final ExternalEmailService adaptee;
     private final String recipientEmail;
 
@@ -12,7 +10,6 @@ public class EmailNotifierAdapter implements Notifier {
         this.recipientEmail  = recipientEmail;
     }
 
-    // Request() → adaptee->SpecificRequest()
     @Override
     public void notify(String message) {
         // Адаптируем вызов — преобразуем notify() в sendEmail()
