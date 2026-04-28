@@ -10,8 +10,8 @@ public class ExternalEmailService {
 
     private static final String SMTP_HOST     = "smtp.gmail.com";
     private static final String SMTP_PORT     = "587";
-    private static final String FROM_EMAIL    = "migovdan031@gmail.com";   // ← твой Gmail
-    private static final String APP_PASSWORD  = "nnks wqzp lybu srsd";    // ← App Password
+    private static final String FROM_EMAIL    = "migovdan031@gmail.com";
+    private static final String APP_PASSWORD  = "nnks wqzp lybu srsd";
 
     public void sendEmail(String to, String subject, String body) {
         System.out.println("  [ExternalEmailService] Отправка email...");

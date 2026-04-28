@@ -25,6 +25,7 @@ messenger\strategy\SendStrategy.class
 messenger\chain\ConnectionValidator.class
 messenger\abstractfactory\DarkSendButton.class
 messenger\adapter\EmailNotifierAdapter.class
+messenger\MessengerApp_2.class
 messenger\chain\ValidationResult.class
 messenger\state\MessageState.class
 messenger\chain\ValidationChainFactory.class
