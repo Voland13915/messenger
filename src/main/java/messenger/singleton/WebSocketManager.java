@@ -159,6 +159,11 @@ public class WebSocketManager {
                 notifyObservers(ObserverEvent.MESSAGE_RECEIVED, json);
                 break;
 
+            case "read":
+                // Наше сообщение прочитано — уведомляем наблюдателей
+                notifyObservers(ObserverEvent.MESSAGE_READ, json.optString("from", ""));
+                break;
+
             case "error":
                 System.err.println("[WS] Сервер: " + json.optString("message"));
                 break;
@@ -168,6 +173,21 @@ public class WebSocketManager {
     // ═══════════════════════════════════════════════════════
     // Отправка
     // ═══════════════════════════════════════════════════════
+
+    /**
+     * Отправить уведомление о прочтении — получатель открыл чат.
+     * Сервер перешлёт это отправителю оригинальных сообщений.
+     * @param originalSender — тот кто отправил нам сообщения которые мы прочитали
+     */
+    public void sendRead(String originalSender) {
+        if (!connected) return;
+        try {
+            JSONObject json = new JSONObject();
+            json.put("type", "read");
+            json.put("to",   originalSender);
+            client.send(json.toString());
+        } catch (Exception e) { e.printStackTrace(); }
+    }
 
     public void send(String to, String text) {
         send(to, text, "TEXT", null, null, null);

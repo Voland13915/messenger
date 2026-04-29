@@ -106,6 +106,20 @@ public class MessengerServer extends WebSocketServer {
                     break;
                 }
 
+                // Уведомление о прочтении — пересылаем отправителю
+                case "read": {
+                    String reader = clients.get(conn);
+                    if (reader == null) break;
+                    String originalSender = json.optString("to", "");
+                    WebSocket senderSocket = findByUsername(originalSender);
+                    if (senderSocket != null) {
+                        json.put("from", reader);
+                        senderSocket.send(json.toString());
+                        System.out.println("[Server] read: " + reader + " прочитал сообщения от " + originalSender);
+                    }
+                    break;
+                }
+
                 default:
                     System.out.println("[Server] Неизвестный тип: " + type);
             }

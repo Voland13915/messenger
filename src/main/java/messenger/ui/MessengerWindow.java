@@ -231,6 +231,13 @@ public class MessengerWindow extends Application implements MessengerObserver {
             case MESSAGE_RECEIVED:
                 handleIncomingMessage((JSONObject) data);
                 break;
+
+            case MESSAGE_READ: {
+                // Наше сообщение прочитано — переводим исходящие в ReadState(✓✓)
+                String reader = (String) data;
+                markOutgoingAsRead(reader);
+                break;
+            }
         }
     }
 
@@ -255,7 +262,8 @@ public class MessengerWindow extends Application implements MessengerObserver {
 
             // State: пришло сообщение от from → он активен и видел наши сообщения.
             // Переводим все наши исходящие в чате from: Delivered(✓) → Read(✓✓)
-            markOutgoingAsRead(to.equals(myName) ? from : from);
+            // State: ✓✓ теперь ставится через событие MESSAGE_READ
+            // когда получатель открывает чат и sendRead() вызывается
 
             // Ключ чата для входящих — имя отправителя
             if (!chatHistory.containsKey(from))
@@ -829,14 +837,14 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 invoker.invoke(new ForwardCommand(
                         facade, wsManager,
                         msg.text(), msg.sender(), selectedChat, target,
-                        msg.type, msg.filePath(), msg.location()));
+                        msg.type(), msg.filePath(), msg.location()));
 
                 // Добавляем в локальную историю сразу — не ждём эхо от сервера
                 if (!chatHistory.containsKey(target))
                     chatHistory.put(target, FXCollections.observableArrayList());
                 chatHistory.get(target).add(new ChatMessage(
                         "⤷ " + msg.sender(), msg.text(), true,
-                        msg.type, msg.filePath(), null, msg.location(), null));
+                        msg.type(), msg.filePath(), null, msg.location(), null));
             }
             clearSelection();
             if (target.equals(selectedChat)) refreshMessages();
@@ -912,6 +920,9 @@ public class MessengerWindow extends Application implements MessengerObserver {
     private void selectChat(String name) {
         clearSelection(); clearQuote();
         selectedChat = name; chatTitleLabel.setText(name);
+        // State: открыли чат → уведомляем собеседника что прочитали его сообщения
+        // wsManager.sendRead() → сервер → собеседник получает "read" → его ✓ становится ✓✓
+        wsManager.sendRead(name);
         refreshMessages(); updateChatList();
     }
 
@@ -925,6 +936,11 @@ public class MessengerWindow extends Application implements MessengerObserver {
      * Факт что он отвечает = он видит наши сообщения = они прочитаны.
      * Переводит все исходящие в этом чате: DeliveredState(✓) → ReadState(✓✓)
      */
+    /**
+     * State: переводит все исходящие сообщения в чате chatName
+     * из DeliveredState(✓) в ReadState(✓✓).
+     * Вызывается когда получатель открывает чат (событие MESSAGE_READ).
+     */
     private void markOutgoingAsRead(String chatName) {
         ObservableList<ChatMessage> msgs = chatHistory.get(chatName);
         if (msgs == null) return;
@@ -933,7 +949,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 stateManager.markRead(msg.messageId());
             }
         }
-        // Перерисовываем чат чтобы показать обновлённые иконки
         if (chatName.equals(selectedChat)) refreshMessages();
     }
 
@@ -972,7 +987,7 @@ public class MessengerWindow extends Application implements MessengerObserver {
             // Блок цитаты: [полоса | имя + текст]
             HBox qBox = new HBox(0);
             qBox.setMaxWidth(Double.MAX_VALUE);
-            String qBg = msg.isOwn
+            String qBg = msg.isOwn()
                     ? "rgba(255,255,255,0.2)" : "rgba(124,131,253,0.15)";
             qBox.setStyle("-fx-background-color:" + qBg + "; -fx-background-radius:6;");
 
