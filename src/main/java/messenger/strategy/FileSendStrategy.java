@@ -3,7 +3,6 @@ package messenger.strategy;
 import messenger.facade.MessengerFacade;
 import messenger.singleton.WebSocketManager;
 
-// Strategy (ConcreteStrategyB) — алгоритм отправки файла
 public class FileSendStrategy implements SendStrategy {
 
     private final MessengerFacade  facade;
@@ -14,7 +13,6 @@ public class FileSendStrategy implements SendStrategy {
         this.wsManager = wsManager;
     }
 
-    // AlgorithmInterface() — Factory Method выбирает IMAGE/VIDEO + Builder
     @Override
     public String execute(SendContext context) {
         facade.sendFile("Вы", context.getText(),

@@ -5,5 +5,5 @@ public interface Message {
     String getContent();
     String getSender();
     String getChatId();
-    void setChatId(String chatId); // перенесли сюда — теперь forward() работает для любого типа
+    void setChatId(String chatId);
 }

@@ -31,7 +31,7 @@ public class RecipientGroup implements Recipient {
     public void send(String message) {
         System.out.println("  [RecipientGroup] Рассылка в группу «" + name + "»:");
         for (Recipient member : members) {
-            member.send(message); // рекурсивно — если потомок тоже Composite
+            member.send(message);
         }
     }
 

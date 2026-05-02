@@ -1,14 +1,10 @@
 package messenger.chain;
 
-/**
- * Объект запроса — передаётся по цепочке обработчиков.
- * Каждый ConcreteHandler читает нужные ему поля.
- */
 public class ValidationRequest {
 
-    private final String text;       // текст сообщения
-    private final String recipient;  // получатель
-    private final boolean connected; // есть ли соединение с сервером
+    private final String text;
+    private final String recipient;
+    private final boolean connected;
 
     public ValidationRequest(String text, String recipient, boolean connected) {
         this.text      = text;

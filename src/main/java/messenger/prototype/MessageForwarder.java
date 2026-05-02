@@ -7,7 +7,7 @@ public class MessageForwarder {
 
     public Message forward(String newChatId) {
         Message p = prototype.clone();
-        p.setChatId(newChatId); // теперь без каста — работает для любого типа
+        p.setChatId(newChatId);
         return p;
     }
 }

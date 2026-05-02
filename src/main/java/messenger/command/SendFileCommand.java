@@ -3,13 +3,6 @@ package messenger.command;
 import messenger.facade.MessengerFacade;
 import messenger.singleton.WebSocketManager;
 
-/**
- * ConcreteCommand — отправка файла (IMAGE или VIDEO).
- *
- * receiver->Action():
- *   facade.sendFile()  — Factory Method выбирает ImageMessage/VideoMessage
- *   wsManager.send()   — реальная отправка
- */
 public class SendFileCommand implements MessageCommand {
 
     private final MessengerFacade  facade;
@@ -18,7 +11,7 @@ public class SendFileCommand implements MessageCommand {
     private final String to;
     private final String caption;
     private final String filePath;
-    private final String type;    // "IMAGE" или "VIDEO"
+    private final String type;
     private final String quote;
 
     public SendFileCommand(MessengerFacade facade, WebSocketManager wsManager,

@@ -3,10 +3,6 @@ package messenger.command;
 import messenger.facade.MessengerFacade;
 import messenger.singleton.WebSocketManager;
 
-/**
- * ConcreteCommand — пересылка сообщения (Prototype внутри Facade).
- * Передаёт полный тип: TEXT, IMAGE, VIDEO, а также filePath и location.
- */
 public class ForwardCommand implements MessageCommand {
 
     private final MessengerFacade  facade;
@@ -16,9 +12,9 @@ public class ForwardCommand implements MessageCommand {
     private final String originalSender;
     private final String fromChat;
     private final String toChat;
-    private final String msgType;    // "TEXT", "IMAGE", "VIDEO"
-    private final String filePath;   // null для текста/геолокации
-    private final String location;   // null для текста/файлов
+    private final String msgType;
+    private final String filePath;
+    private final String location;
 
     public ForwardCommand(MessengerFacade facade, WebSocketManager wsManager,
                           String text, String originalSender,
@@ -37,10 +33,8 @@ public class ForwardCommand implements MessageCommand {
 
     @Override
     public void execute() {
-        // Prototype через Facade: клонирует сообщение и меняет chatId
         facade.forwardMessage(text, originalSender, fromChat, toChat);
 
-        // Реальная отправка через WebSocket с полным типом
         wsManager.send(toChat, "⤷ " + text, msgType, filePath, location);
     }
 

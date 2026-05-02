@@ -3,28 +3,14 @@ package messenger.command;
 import messenger.facade.MessengerFacade;
 import messenger.singleton.WebSocketManager;
 
-/**
- * ConcreteCommand — отправка текстового сообщения.
- *
- * Состояние (по диаграмме GoF):
- *   receiver  = wsManager + facade
- *   state     = to, text, quote
- *
- * Execute() вызывает receiver->Action():
- *   facade.sendText()   — Builder + Factory Method (паттерны)
- *   wsManager.send()    — реальная отправка через WebSocket
- */
 public class SendTextCommand implements MessageCommand {
 
-    // receiver — получатели (знают как выполнить операцию)
     private final MessengerFacade  facade;
     private final WebSocketManager wsManager;
 
-    // состояние команды
     private final String to;
     private final String text;
-    private final String quote;   // может быть null
-
+    private final String quote;
     public SendTextCommand(MessengerFacade facade, WebSocketManager wsManager,
                            String to, String text, String quote) {
         this.facade    = facade;
@@ -37,8 +23,8 @@ public class SendTextCommand implements MessageCommand {
     /** Execute() → receiver->Action() */
     @Override
     public void execute() {
-        facade.sendText("Вы", text, quote);                        // Facade: Builder + Factory Method
-        wsManager.send(to, text, "TEXT", null, null, quote);       // WebSocket: с цитатой
+        facade.sendText("Вы", text, quote);
+        wsManager.send(to, text, "TEXT", null, null, quote);
     }
 
     @Override

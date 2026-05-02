@@ -1,10 +1,5 @@
 package messenger.chain;
 
-/**
- * ConcreteHandler 2 — проверка длины сообщения.
- *
- * Блокирует если текст превышает допустимый лимит.
- */
 public class LengthValidator extends MessageValidator {
 
     private static final int MAX_LENGTH = 4096;

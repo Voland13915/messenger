@@ -3,9 +3,6 @@ package messenger.command;
 import messenger.facade.MessengerFacade;
 import messenger.singleton.WebSocketManager;
 
-/**
- * ConcreteCommand — отправка геолокации.
- */
 public class SendLocationCommand implements MessageCommand {
 
     private final MessengerFacade  facade;

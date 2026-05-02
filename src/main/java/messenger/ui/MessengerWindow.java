@@ -32,71 +32,42 @@ import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * MessengerWindow — главное окно приложения.
- *
- * Реализует паттерны поведения:
- *   Observer  — implements MessengerObserver, подписывается на WebSocketManager
- *   Command   — все отправки идут через CommandInvoker
- *   Chain     — validationChain проверяет сообщение перед отправкой
- *   Strategy  — messageSender выбирает алгоритм отправки
- *   State     — stateManager отслеживает состояние каждого сообщения
- */
 public class MessengerWindow extends Application implements MessengerObserver {
 
-    // ── Abstract Factory (AbstractFactory) ──────────────────────────
-    // currentFactory создаётся через LightThemeFactory/DarkThemeFactory при toggleTheme()
     private boolean isDark = false;
 
-    // ── Singleton / ConcreteSubject (Observer) ────────────────────────
     private final WebSocketManager wsManager = WebSocketManager.getInstance();
 
-    // ── Facade ────────────────────────────────────────────────────────
     private final MessengerFacade facade = new MessengerFacade();
 
-    // ── Adapter (Target) ─────────────────────────────────────────────
-    // notifier используется в sendEmailNotification() для демонстрации паттерна
     private Notifier notifier = new EmailNotifierAdapter(
             new ExternalEmailService(), "user@example.com");
 
-    // ── Command: Invoker хранит историю команд ────────────────────────
     private final CommandInvoker invoker = new CommandInvoker();
 
-    // ── Chain of Responsibility: цепочка валидации ────────────────────
     private final MessageValidator validationChain = ValidationChainFactory.build();
 
-    // ── Strategy: Context делегирует алгоритм отправки ────────────────
     private final MessageSender messageSender = new MessageSender();
 
-    // ── State: менеджер состояний исходящих сообщений ─────────────────
     private final MessageStateManager stateManager = new MessageStateManager();
 
-    // ── observerState ─────────────────────────────────────────────────
     private final Map<String, ObservableList<ChatMessage>> chatHistory = new HashMap<>();
     private String selectedChat = null;
 
-    // ── Выделение ─────────────────────────────────────────────────────
     private final Set<ChatMessage>       selectedMessages = new LinkedHashSet<>();
     private final Map<ChatMessage, VBox> selectedBubbles  = new HashMap<>();
 
-    // ── Цитата ────────────────────────────────────────────────────────
     private ChatMessage quotedMessage = null;
     private HBox        quoteBar      = null;
 
-    // ── Decorator ─────────────────────────────────────────────────────
     private boolean isImportant = false;
     private boolean isEncrypted = false;
 
-    // ── Попапы ────────────────────────────────────────────────────────
     private javafx.stage.Popup attachPopup = null;
     private javafx.stage.Popup morePopup   = null;
 
-    // ── Proxy: кэш загруженных изображений — filePath → ImageLoaderProxy ─
-    // isLoaded() используется чтобы не создавать новый прокси для уже загруженных фото
-    // getFilePath() — ключ поиска в кэше
     private final Map<String, ImageLoaderProxy> imageProxyCache = new HashMap<>();
 
-    // ── UI ────────────────────────────────────────────────────────────
     private VBox       messageArea;
     private ScrollPane messageScroll;
     private TextField  inputField;
@@ -107,13 +78,11 @@ public class MessengerWindow extends Application implements MessengerObserver {
     private Scene      scene;
     private VBox       chatList;
 
-    // ═════════════════════════════════════════════════════════════════
     @Override
     public void start(Stage stage) {
         showLoginDialog(stage);
     }
 
-    // ── Диалог входа ─────────────────────────────────────────────────
     private void showLoginDialog(Stage stage) {
         Stage loginStage = new Stage();
         loginStage.setTitle("Подключение");
@@ -153,7 +122,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
             statusLabel.setText("Подключение…");
             connectBtn.setDisable(true);
 
-            // Observer: Attach(this) — регистрируемся до connect()
             wsManager.attach(this);
             wsManager.connect("ws://" + ip + ":" + port, username);
 
@@ -171,10 +139,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         loginStage.show();
     }
 
-    // ═════════════════════════════════════════════════════════════════
-    // Observer: Update() — ConcreteObserver синхронизируется с субъектом
-    // observerState = subject->GetState()
-    // ═════════════════════════════════════════════════════════════════
     @Override
     public void update(ObserverEvent event, Object data) {
         switch (event) {
@@ -208,7 +172,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
                     for (String user : users)
                         if (!user.equals(myName) && !chatHistory.containsKey(user))
                             chatHistory.put(user, FXCollections.observableArrayList());
-                    // selectedChat — первый чужой пользователь
                     if (selectedChat == null)
                         chatHistory.keySet().stream()
                                 .filter(u -> !u.equals(myName))
@@ -224,16 +187,23 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 break;
             }
 
-            case USER_LEFT:
+            case USER_LEFT: {
+                String user = (String) data;
+                chatHistory.remove(user);
+                if (user.equals(selectedChat)) {
+                    selectedChat = null;
+                    if (chatTitleLabel != null) chatTitleLabel.setText("Выберите чат");
+                    if (messageArea != null) messageArea.getChildren().clear();
+                }
                 if (chatList != null) updateChatList();
                 break;
+            }
 
             case MESSAGE_RECEIVED:
                 handleIncomingMessage((JSONObject) data);
                 break;
 
             case MESSAGE_READ: {
-                // Наше сообщение прочитано — переводим исходящие в ReadState(✓✓)
                 String reader = (String) data;
                 markOutgoingAsRead(reader);
                 break;
@@ -241,7 +211,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         }
     }
 
-    // ── Обработка входящего сообщения ─────────────────────────────────
     private void handleIncomingMessage(JSONObject json) {
         try {
             String from     = json.getString("from");
@@ -254,22 +223,12 @@ public class MessengerWindow extends Application implements MessengerObserver {
             String myName   = wsManager.getMyUsername();
 
             if (from.equals(myName)) {
-                // Эхо собственного сообщения — сообщение уже добавлено в историю.
-                // Но используем эхо для State: сервер доставил сообщение → Delivered подтверждён.
-                // Когда придёт ответ от собеседника — тогда пометим как Read.
                 return;
             }
 
-            // State: пришло сообщение от from → он активен и видел наши сообщения.
-            // Переводим все наши исходящие в чате from: Delivered(✓) → Read(✓✓)
-            // State: ✓✓ теперь ставится через событие MESSAGE_READ
-            // когда получатель открывает чат и sendRead() вызывается
-
-            // Ключ чата для входящих — имя отправителя
             if (!chatHistory.containsKey(from))
                 chatHistory.put(from, FXCollections.observableArrayList());
 
-            // Сохраняем quote — получатель увидит на какое сообщение был ответ
             chatHistory.get(from).add(new ChatMessage(
                     from, text, false,
                     msgType, filePath, quote, location, null));
@@ -279,7 +238,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         } catch (Exception e) { System.err.println("[Messenger] Ошибка обработки сообщения: " + e.getMessage()); }
     }
 
-    // ── Запуск главного окна ──────────────────────────────────────────
     private void launchMainWindow(Stage stage) {
         BorderPane root = buildRoot();
         scene = new Scene(root, 900, 640);
@@ -287,15 +245,12 @@ public class MessengerWindow extends Application implements MessengerObserver {
         stage.setTitle("Messenger — " + wsManager.getMyUsername());
         stage.setScene(scene);
         stage.setOnCloseRequest(e -> {
-            wsManager.detach(this);   // Observer: Detach при закрытии
+            wsManager.detach(this);
             wsManager.disconnect();
         });
         stage.show();
     }
 
-    // ═════════════════════════════════════════════════════════════════
-    // ── Построение интерфейса ─────────────────────────────────────────
-    // ═════════════════════════════════════════════════════════════════
 
     private BorderPane buildRoot() {
         BorderPane bp = new BorderPane();
@@ -311,9 +266,29 @@ public class MessengerWindow extends Application implements MessengerObserver {
         header.setAlignment(Pos.CENTER_LEFT); header.setPadding(new Insets(16, 12, 16, 16));
         Label title = new Label("Чаты"); title.getStyleClass().add("left-title");
         HBox.setHgrow(title, Priority.ALWAYS);
+
         Button themeBtn = new Button("◑"); themeBtn.getStyleClass().add("theme-btn");
         themeBtn.setOnAction(e -> toggleTheme());
-        header.getChildren().addAll(title, themeBtn);
+
+        Button disconnectBtn = new Button("✕");
+        disconnectBtn.getStyleClass().add("theme-btn");
+        disconnectBtn.setStyle("-fx-text-fill: #E06060;");
+        disconnectBtn.setTooltip(new Tooltip("Отключиться от сервера"));
+        disconnectBtn.setOnAction(e -> {
+            if (wsManager.isConnected()) {
+                wsManager.simulateDisconnect();
+                disconnectBtn.setText("↺");
+                disconnectBtn.setStyle("-fx-text-fill: #4CAF50;");
+                disconnectBtn.setTooltip(new Tooltip("Восстановить соединение"));
+            } else {
+                wsManager.simulateReconnect();
+                disconnectBtn.setText("✕");
+                disconnectBtn.setStyle("-fx-text-fill: #E06060;");
+                disconnectBtn.setTooltip(new Tooltip("Симулировать разрыв соединения"));
+            }
+        });
+
+        header.getChildren().addAll(title, themeBtn, disconnectBtn);
 
         statusBar = new Label("● Подключение…");
         statusBar.getStyleClass().add("status-bar");
@@ -363,7 +338,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         chatTitleLabel.getStyleClass().add("chat-title");
         HBox.setHgrow(chatTitleLabel, Priority.ALWAYS);
 
-        // Command: кнопка истории команд — вызывает printHistory() + getHistorySize()
         Button historyBtn = new Button("📋");
         historyBtn.getStyleClass().add("theme-btn");
         historyBtn.setStyle("-fx-font-size:16px;");
@@ -407,7 +381,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         return panel;
     }
 
-    // ── Попап «⊕» ────────────────────────────────────────────────────
     private void showAttachMenu(javafx.scene.Node anchor) {
         if (attachPopup != null && attachPopup.isShowing()) {
             attachPopup.hide(); attachPopup = null; return;
@@ -431,7 +404,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         menu.layout(); attachPopup.setY(b.getMinY() - menu.getHeight() - 8);
     }
 
-    // ── Попап «⋯» ────────────────────────────────────────────────────
     private void showMoreMenu(javafx.scene.Node anchor) {
         if (morePopup != null && morePopup.isShowing()) {
             morePopup.hide(); morePopup = null; return;
@@ -481,7 +453,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         return row;
     }
 
-    // ── Контекстная панель ────────────────────────────────────────────
     private void showContextBar() {
         if (contextBar != null) {
             ((Label) contextBar.getChildren().get(0))
@@ -510,36 +481,26 @@ public class MessengerWindow extends Application implements MessengerObserver {
         }
     }
 
-    // ═════════════════════════════════════════════════════════════════
-    // ── Отправка — Chain → Strategy → Command → State ─────────────────
-    // ═════════════════════════════════════════════════════════════════
-
-    // 1. Текст
     private void sendMessage() {
         String text = inputField.getText().trim();
         String quote = quotedMessage != null
                 ? buildQuoteString(quotedMessage) : null;
         String decorated = applyDecorators(text, "Вы");
 
-        // Chain of Responsibility: валидация перед отправкой
         ValidationRequest req = new ValidationRequest(
                 decorated, selectedChat, wsManager.isConnected());
         ValidationResult chainResult = validationChain.handleRequest(req);
         if (!chainResult.isValid()) { showAlert(chainResult.getReason()); return; }
 
-        // Strategy: устанавливаем алгоритм и выполняем через SendContext
         messageSender.setStrategy(new TextSendStrategy(facade, wsManager));
         System.out.println("[Strategy] Текущая стратегия: "
                 + messageSender.getStrategy().getClass().getSimpleName());
         messageSender.send(SendContext.forText(selectedChat, decorated, quote));
 
-        // Command: единственная точка WebSocket-отправки
         invoker.invoke(new SendTextCommand(facade, wsManager, selectedChat, decorated, quote));
 
-        // State: создаём контекст состояния для нового сообщения
         MessageContext msgCtx = stateManager.createContext(decorated, selectedChat);
 
-        // Добавляем в историю чата с идентификатором состояния
         chatHistory.get(selectedChat).add(new ChatMessage(
                 "Вы", decorated, true, "TEXT", null, quote, null, msgCtx.getMessageId()));
 
@@ -547,7 +508,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         refreshMessages(); updateChatList();
     }
 
-    // 2. Файл
     private void sendFileMessage(String type) {
         if (selectedChat == null) { showAlert("Выберите чат"); return; }
         FileChooser ch = new FileChooser();
@@ -567,22 +527,18 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 ? buildQuoteString(quotedMessage) : null;
         String text    = applyDecorators(caption.isEmpty() ? file.getName() : caption, "Вы");
 
-        // Chain: валидация подписи
         ValidationResult chainResult = validationChain.handleRequest(
                 new ValidationRequest(text, selectedChat, wsManager.isConnected()));
         if (!chainResult.isValid()) { showAlert(chainResult.getReason()); return; }
 
-        // Strategy: устанавливаем алгоритм и выполняем через SendContext
         messageSender.setStrategy(new FileSendStrategy(facade, wsManager));
         System.out.println("[Strategy] Текущая стратегия: "
                 + messageSender.getStrategy().getClass().getSimpleName());
         messageSender.send(SendContext.forFile(selectedChat, text, file.getAbsolutePath(), type, quote));
 
-        // Command: единственная точка WebSocket-отправки
         invoker.invoke(new SendFileCommand(
                 facade, wsManager, selectedChat, text, file.getAbsolutePath(), type, quote));
 
-        // State
         MessageContext msgCtx = stateManager.createContext(text, selectedChat);
 
         chatHistory.get(selectedChat).add(new ChatMessage(
@@ -592,7 +548,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         clearQuote(); resetDecorators(); refreshMessages(); updateChatList();
     }
 
-    // 3. Геолокация
     private void sendLocationMessage() {
         if (selectedChat == null) { showAlert("Выберите чат"); return; }
         TextInputDialog dlg = new TextInputDialog("53.9045,27.5615");
@@ -602,22 +557,18 @@ public class MessengerWindow extends Application implements MessengerObserver {
             String quote = quotedMessage != null
                     ? buildQuoteString(quotedMessage) : null;
 
-            // Chain
             ValidationResult chainResult = validationChain.handleRequest(
                     new ValidationRequest(coords, selectedChat, wsManager.isConnected()));
             if (!chainResult.isValid()) { showAlert(chainResult.getReason()); return; }
 
-            // Strategy: устанавливаем алгоритм и выполняем через SendContext
             messageSender.setStrategy(new LocationSendStrategy(facade, wsManager));
             System.out.println("[Strategy] Текущая стратегия: "
                     + messageSender.getStrategy().getClass().getSimpleName());
             messageSender.send(SendContext.forLocation(selectedChat, coords, quote));
 
-            // Command: единственная точка WebSocket-отправки
             invoker.invoke(new SendLocationCommand(
                     facade, wsManager, selectedChat, coords, quote));
 
-            // State
             MessageContext msgCtx = stateManager.createContext("📍 " + coords, selectedChat);
 
             chatHistory.get(selectedChat).add(new ChatMessage(
@@ -628,7 +579,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         });
     }
 
-    // ── Adapter — email ───────────────────────────────────────────────
     private void sendEmailNotification() {
         ObservableList<ChatMessage> hist = selectedChat != null
                 ? chatHistory.get(selectedChat) : null;
@@ -642,7 +592,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         dlg.setTitle("Email"); dlg.setHeaderText(null); dlg.setContentText("Email:");
         dlg.showAndWait().ifPresent(email -> {
             if (email.trim().isEmpty()) return;
-            // Adapter: обновляем адресата и вызываем notify() — Target интерфейс
             notifier = new EmailNotifierAdapter(new ExternalEmailService(), email.trim());
             for (ChatMessage msg : toNotify)
                 notifier.notify("[" + selectedChat + "] " + msg.sender() + ": " + msg.text());
@@ -650,7 +599,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         });
     }
 
-    // ── Composite — группа ───────────────────────────────────────────
     private void sendToGroup() {
         String text = inputField.getText().trim();
         if (text.isEmpty()) { showAlert("Введите текст"); return; }
@@ -673,12 +621,9 @@ public class MessengerWindow extends Application implements MessengerObserver {
         dialog.showAndWait().ifPresent(selected -> {
             if (selected.isEmpty()) return;
 
-            // Composite: строим дерево — RecipientGroup (Composite) + SingleRecipient (Leaf)
             RecipientGroup group = new RecipientGroup("Рассылка");
             for (String name : selected) group.add(new SingleRecipient(name));
 
-            // Composite: getChild() — показываем состав группы и даём убрать получателя
-            // Диалог подтверждения с возможностью исключить кого-то через remove()
             Dialog<Boolean> confirmDlg = new Dialog<>();
             confirmDlg.setTitle("Подтверждение рассылки");
             confirmDlg.setHeaderText("Состав группы «Рассылка»:");
@@ -686,10 +631,9 @@ public class MessengerWindow extends Application implements MessengerObserver {
             confirmBox.setPadding(new Insets(12));
             List<CheckBox> memberBoxes = new ArrayList<>();
             for (int i = 0; i < group.getMembers().size(); i++) {
-                // getChild(int) — доступ к конкретному участнику по индексу
                 Recipient child = group.getChild(i);
                 CheckBox cb = new CheckBox(child.getName());
-                cb.setSelected(true); // по умолчанию все включены
+                cb.setSelected(true);
                 memberBoxes.add(cb);
                 confirmBox.getChildren().add(cb);
             }
@@ -700,8 +644,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
             confirmDlg.showAndWait().ifPresent(confirmed -> {
                 if (!confirmed) return;
 
-                // remove() — собираем список исключённых, затем удаляем из группы
-                // getChild(i) возвращает Recipient по индексу — часть интерфейса Composite
                 List<Recipient> toRemove = new ArrayList<>();
                 for (int i = 0; i < memberBoxes.size(); i++) {
                     if (!memberBoxes.get(i).isSelected())
@@ -717,10 +659,8 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 String quote     = quotedMessage != null
                         ? buildQuoteString(quotedMessage) : null;
 
-                // Composite: один вызов send() рекурсивно проходит всё дерево
                 group.send(decorated);
 
-                // Strategy + Command: отправляем каждому члену группы
                 messageSender.setStrategy(new TextSendStrategy(facade, wsManager));
                 for (Recipient member : group.getMembers()) {
                     invoker.invoke(new SendTextCommand(
@@ -747,14 +687,12 @@ public class MessengerWindow extends Application implements MessengerObserver {
 
     private void resetDecorators() { isImportant = false; isEncrypted = false; }
 
-    // ── Ответить ──────────────────────────────────────────────────────
     private void replyToSelected() {
         if (selectedMessages.isEmpty()) return;
         quotedMessage = selectedMessages.iterator().next();
         clearSelection(); showQuoteBar(quotedMessage); inputField.requestFocus();
     }
 
-    /** Формирует строку цитаты: "Имя: текст" — для хранения в ChatMessage.quote */
     private String buildQuoteString(ChatMessage msg) {
         String preview;
         if (msg.type().equals("IMAGE"))      preview = "🖼 Фотография";
@@ -766,16 +704,14 @@ public class MessengerWindow extends Application implements MessengerObserver {
 
     private void showQuoteBar(ChatMessage msg) {
         clearQuote();
-        quotedMessage = msg;  // восстанавливаем после clearQuote()
+        quotedMessage = msg;
         quoteBar = new HBox(0); quoteBar.getStyleClass().add("quote-bar");
         quoteBar.setAlignment(Pos.CENTER_LEFT);
 
-        // Вертикальная полоса
         javafx.scene.layout.Region stripe = new javafx.scene.layout.Region();
         stripe.setMinWidth(3); stripe.setMaxWidth(3); stripe.setMinHeight(36);
         stripe.setStyle("-fx-background-color:#7C83FD;");
 
-        // Текст цитаты — имя и содержимое
         VBox textBox = new VBox(1);
         textBox.setPadding(new Insets(4, 0, 4, 10));
         HBox.setHgrow(textBox, Priority.ALWAYS);
@@ -783,7 +719,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         Label senderLbl = new Label("↩  " + msg.sender());
         senderLbl.setStyle("-fx-font-size:11px; -fx-font-weight:bold; -fx-text-fill:#7C83FD;");
 
-        // Для фото/видео показываем тип вместо имени файла
         String previewText;
         if (msg.type().equals("IMAGE"))    previewText = "🖼 Фотография";
         else if (msg.type().equals("VIDEO")) previewText = "▶ Видео";
@@ -812,7 +747,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         }
     }
 
-    // ── Переслать — Command + Prototype ──────────────────────────────
     private void forwardMessage() {
         List<ChatMessage> toForward = selectedMessages.isEmpty()
                 ? (chatHistory.get(selectedChat) == null
@@ -833,13 +767,11 @@ public class MessengerWindow extends Application implements MessengerObserver {
         dlg.setTitle("Переслать"); dlg.setHeaderText(null); dlg.setContentText("Чат:");
         dlg.showAndWait().ifPresent(target -> {
             for (ChatMessage msg : toForward) {
-                // Command: передаём полный тип сообщения (TEXT/IMAGE/VIDEO + filePath + location)
                 invoker.invoke(new ForwardCommand(
                         facade, wsManager,
                         msg.text(), msg.sender(), selectedChat, target,
                         msg.type(), msg.filePath(), msg.location()));
 
-                // Добавляем в локальную историю сразу — не ждём эхо от сервера
                 if (!chatHistory.containsKey(target))
                     chatHistory.put(target, FXCollections.observableArrayList());
                 chatHistory.get(target).add(new ChatMessage(
@@ -858,24 +790,18 @@ public class MessengerWindow extends Application implements MessengerObserver {
         selectedMessages.clear(); selectedBubbles.clear(); hideContextBar();
     }
 
-    // ── Command: показать историю команд ─────────────────────────────
-    // Задействует printHistory(), getHistorySize(), getLastCommandDescription()
     private void showCommandHistory() {
         int size = invoker.getHistorySize();
         if (size == 0) { showAlert("История команд пуста"); return; }
 
-        // printHistory() — вывод в консоль (для демонстрации паттерна)
         invoker.printHistory();
 
-        // getLastCommandDescription() — последняя выполненная команда
         String last = invoker.getLastCommandDescription();
 
-        // getHistorySize() — количество команд в истории
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("История команд (Command)");
         alert.setHeaderText("Последняя: " + last);
 
-        // Строим текст со всеми командами через getHistorySize()
         StringBuilder sb = new StringBuilder();
         sb.append("Всего команд в истории: ").append(size).append(" ");
                 sb.append("(полный список выведен в консоль)");
@@ -883,7 +809,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         alert.showAndWait();
     }
 
-    // ── Видеоплеер ────────────────────────────────────────────────────
     private void openVideoPlayer(String filePath, String title) {
         Stage ps = new Stage(); ps.setTitle(title);
         javafx.scene.media.Media media =
@@ -903,10 +828,8 @@ public class MessengerWindow extends Application implements MessengerObserver {
         ps.setOnCloseRequest(e -> player.stop()); ps.show(); player.play();
     }
 
-    // ── Тема (Abstract Factory) ───────────────────────────────────────
     private void toggleTheme() {
         isDark = !isDark;
-        // Abstract Factory: создаём фабрику нужной темы и применяем CSS
         applyTheme();
     }
 
@@ -916,31 +839,13 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 isDark ? "/dark-theme.css" : "/light-theme.css").toExternalForm());
     }
 
-    // ── Обновление UI ─────────────────────────────────────────────────
     private void selectChat(String name) {
         clearSelection(); clearQuote();
         selectedChat = name; chatTitleLabel.setText(name);
-        // State: открыли чат → уведомляем собеседника что прочитали его сообщения
-        // wsManager.sendRead() → сервер → собеседник получает "read" → его ✓ становится ✓✓
         wsManager.sendRead(name);
         refreshMessages(); updateChatList();
     }
 
-    /**
-     * State: markRead() — вызывается когда получатель присылает нам сообщение.
-     * Факт что он отвечает = он видит наши сообщения = они прочитаны.
-     * Переводит все исходящие в этом чате: DeliveredState(✓) → ReadState(✓✓)
-     */
-    /**
-     * State: markRead() — вызывается когда получатель присылает нам сообщение.
-     * Факт что он отвечает = он видит наши сообщения = они прочитаны.
-     * Переводит все исходящие в этом чате: DeliveredState(✓) → ReadState(✓✓)
-     */
-    /**
-     * State: переводит все исходящие сообщения в чате chatName
-     * из DeliveredState(✓) в ReadState(✓✓).
-     * Вызывается когда получатель открывает чат (событие MESSAGE_READ).
-     */
     private void markOutgoingAsRead(String chatName) {
         ObservableList<ChatMessage> msgs = chatHistory.get(chatName);
         if (msgs == null) return;
@@ -973,7 +878,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         }
 
         if (msg.quote() != null) {
-            // Парсим "Имя: текст"
             String qContent = msg.quote();
             String qSender  = "";
             String qText    = qContent;
@@ -983,21 +887,17 @@ public class MessengerWindow extends Application implements MessengerObserver {
                 qText   = qContent.substring(ci + 2);
             }
 
-            // Внешний HBox: [полоса | текстовый блок]
-            // Блок цитаты: [полоса | имя + текст]
             HBox qBox = new HBox(0);
             qBox.setMaxWidth(Double.MAX_VALUE);
             String qBg = msg.isOwn()
                     ? "rgba(255,255,255,0.2)" : "rgba(124,131,253,0.15)";
             qBox.setStyle("-fx-background-color:" + qBg + "; -fx-background-radius:6;");
 
-            // Вертикальная полоса
             javafx.scene.layout.Region qStripe = new javafx.scene.layout.Region();
             qStripe.setMinWidth(3); qStripe.setMaxWidth(3); qStripe.setMinHeight(36);
             String stripeColor = msg.isOwn() ? "rgba(255,255,255,0.9)" : "#7C83FD";
             qStripe.setStyle("-fx-background-color:" + stripeColor + "; -fx-background-radius:3 0 0 3;");
 
-            // Текстовая часть
             VBox qTextBox = new VBox(2);
             qTextBox.setPadding(new Insets(4, 8, 4, 8));
             HBox.setHgrow(qTextBox, Priority.ALWAYS);
@@ -1020,22 +920,17 @@ public class MessengerWindow extends Application implements MessengerObserver {
 
         if (msg.type().equals("IMAGE") && msg.filePath() != null) {
             try {
-                // Proxy: ищем в кэше по getFilePath() — не создаём новый прокси если уже есть
                 ImageLoaderProxy proxy = imageProxyCache.get(msg.filePath());
                 if (proxy == null) {
                     proxy = new ImageLoaderProxy(msg.filePath());
                     imageProxyCache.put(proxy.getFilePath(), proxy);
                 }
 
-                // Proxy: показываем placeholder пока изображение не загружено
                 javafx.scene.image.ImageView iv = new javafx.scene.image.ImageView();
                 iv.setFitWidth(280); iv.setPreserveRatio(true);
                 if (proxy.isLoaded()) {
-                    // RealImageLoader уже создан — берём готовое изображение
                     iv.setImage(proxy.getImage());
                 } else {
-                    // RealImageLoader ещё не создан — показываем placeholder,
-                    // затем через Platform.runLater загружаем реальное изображение
                     iv.setImage(proxy.getPlaceholder());
                     javafx.scene.image.ImageView finalIv = iv;
                     ImageLoaderProxy finalProxy = proxy;
@@ -1073,7 +968,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
             t.setWrapText(true); bubble.getChildren().add(t);
         }
 
-        // State: иконка статуса для исходящих сообщений
         if (msg.isOwn() && msg.messageId() != null) {
             String icon = stateManager.getStatusIcon(msg.messageId());
             if (!icon.isEmpty()) {
@@ -1107,10 +1001,9 @@ public class MessengerWindow extends Application implements MessengerObserver {
         String myName = wsManager.getMyUsername();
         chatList.getChildren().clear();
         for (String chat : chatHistory.keySet())
-            if (!chat.equals(myName))   // не показываем чат с самим собой
+            if (!chat.equals(myName))
                 chatList.getChildren().add(buildChatItem(chat));
         if (statusBar != null) {
-            // Facade: isServerRunning() — единая точка проверки состояния сервера
             String serverStatus = facade.isServerRunning() ? "● " : "○ ";
             statusBar.setText(serverStatus + facade.getOnlineCount() + " онлайн");
         }
@@ -1121,8 +1014,6 @@ public class MessengerWindow extends Application implements MessengerObserver {
         a.setHeaderText(null); a.showAndWait();
     }
 
-    // ── Модель сообщения — record (Java 16+) ─────────────────────────
-    // State: messageId связывает сообщение с MessageContext
     record ChatMessage(String sender, String text, boolean isOwn, String type,
                        String filePath, String quote, String location, String messageId) {}
 

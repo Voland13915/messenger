@@ -11,17 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * ConcreteSubject (паттерн Observer) + Singleton.
- *
- * subjectState:  onlineUsers, connected
- * GetState():    getOnlineUsers(), isConnected()
- * SetState():    изменяется внутри при событиях WebSocket
- * Notify():      вызывается автоматически после SetState()
- */
 public class WebSocketManager {
 
-    // ── Singleton (double-checked locking) ───────────────────────────
     private static volatile WebSocketManager instance;
 
     public static WebSocketManager getInstance() {
@@ -35,43 +26,32 @@ public class WebSocketManager {
 
     private WebSocketManager() {}
 
-    // ── subjectState ──────────────────────────────────────────────────
     private final List<String> onlineUsers = new ArrayList<>();
     private boolean connected  = false;
     private String  myUsername = null;
 
-    // ── observers — список наблюдателей ───────────────────────────────
     private final List<MessengerObserver> observers = new CopyOnWriteArrayList<>();
 
-    // ── WebSocket ─────────────────────────────────────────────────────
     private WebSocketClient client;
 
-    // ═══════════════════════════════════════════════════════
-    // Subject: Attach / Detach / Notify
-    // ═══════════════════════════════════════════════════════
-
-    /** Attach(Observer) */
     public void attach(MessengerObserver observer) {
         if (!observers.contains(observer)) observers.add(observer);
     }
 
-    /** Detach(Observer) */
     public void detach(MessengerObserver observer) {
         observers.remove(observer);
     }
 
-    /** Notify() — для каждого o: o->Update() */
     private void notifyObservers(ObserverEvent event, Object data) {
         for (MessengerObserver o : observers) {
             o.update(event, data);
         }
     }
 
-    // ═══════════════════════════════════════════════════════
-    // Подключение к серверу
-    // ═══════════════════════════════════════════════════════
+    private String lastServerUrl = null;
 
     public void connect(String serverUrl, String username) {
+        this.lastServerUrl = serverUrl;
         this.myUsername = username;
         try {
             client = new WebSocketClient(new URI(serverUrl)) {
@@ -85,7 +65,6 @@ public class WebSocketManager {
                         send(reg.toString());
                     } catch (Exception e) { e.printStackTrace(); }
 
-                    // SetState + Notify
                     connected = true;
                     javafx.application.Platform.runLater(() ->
                             notifyObservers(ObserverEvent.CONNECTION_CHANGED, true));
@@ -114,33 +93,45 @@ public class WebSocketManager {
                 public void onError(Exception ex) {
                     System.err.println("[WS] Ошибка: " + ex.getMessage());
                 }
+
+                public void simulateDisconnect() {
+                    connected = false;
+                    javafx.application.Platform.runLater(() ->
+                            notifyObservers(ObserverEvent.CONNECTION_CHANGED, false));
+                }
+
+                public void simulateReconnect() {
+                    connected = true;
+                    javafx.application.Platform.runLater(() ->
+                            notifyObservers(ObserverEvent.CONNECTION_CHANGED, true));
+                }
             };
             client.connect();
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // ── Обработка входящих событий: SetState() → Notify() ────────────
+    public String getLastServerUrl() { return lastServerUrl; }
+
     private void processMessage(String type, JSONObject json) throws Exception {
         switch (type) {
 
             case "registered":
                 System.out.println("[WS] Зарегистрирован: " + json.getString("username"));
-                // Уведомляем наблюдателей что соединение готово к работе
                 notifyObservers(ObserverEvent.CONNECTION_CHANGED, true);
                 break;
 
             case "user_joined": {
                 String name = json.getString("username");
                 if (!name.equals(myUsername) && !onlineUsers.contains(name))
-                    onlineUsers.add(name);              // SetState
-                notifyObservers(ObserverEvent.USER_JOINED, name); // Notify
+                    onlineUsers.add(name);
+                notifyObservers(ObserverEvent.USER_JOINED, name);
                 break;
             }
 
             case "user_left": {
                 String name = json.getString("username");
-                onlineUsers.remove(name);               // SetState
-                notifyObservers(ObserverEvent.USER_LEFT, name);   // Notify
+                onlineUsers.remove(name);
+                notifyObservers(ObserverEvent.USER_LEFT, name);
                 break;
             }
 
@@ -151,7 +142,7 @@ public class WebSocketManager {
                     if (!name.equals(myUsername)) onlineUsers.add(name);
                 });
                 notifyObservers(ObserverEvent.USER_JOINED,
-                        new ArrayList<>(onlineUsers));  // передаём копию
+                        new ArrayList<>(onlineUsers));
                 break;
             }
 
@@ -160,7 +151,6 @@ public class WebSocketManager {
                 break;
 
             case "read":
-                // Наше сообщение прочитано — уведомляем наблюдателей
                 notifyObservers(ObserverEvent.MESSAGE_READ, json.optString("from", ""));
                 break;
 
@@ -170,15 +160,6 @@ public class WebSocketManager {
         }
     }
 
-    // ═══════════════════════════════════════════════════════
-    // Отправка
-    // ═══════════════════════════════════════════════════════
-
-    /**
-     * Отправить уведомление о прочтении — получатель открыл чат.
-     * Сервер перешлёт это отправителю оригинальных сообщений.
-     * @param originalSender — тот кто отправил нам сообщения которые мы прочитали
-     */
     public void sendRead(String originalSender) {
         if (!connected) return;
         try {
@@ -214,10 +195,6 @@ public class WebSocketManager {
         } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // ═══════════════════════════════════════════════════════
-    // GetState()
-    // ═══════════════════════════════════════════════════════
-
     public boolean      isConnected()        { return connected; }
     public String       getMyUsername()      { return myUsername; }
     public int          getConnectionCount() { return onlineUsers.size(); }
@@ -226,4 +203,16 @@ public class WebSocketManager {
     public void disconnect() {
         if (client != null) client.close();
     }
+    public void simulateDisconnect() {
+        connected = false;
+        javafx.application.Platform.runLater(() ->
+                notifyObservers(ObserverEvent.CONNECTION_CHANGED, false));
+    }
+
+    public void simulateReconnect() {
+        connected = true;
+        javafx.application.Platform.runLater(() ->
+                notifyObservers(ObserverEvent.CONNECTION_CHANGED, true));
+    }
 }
+

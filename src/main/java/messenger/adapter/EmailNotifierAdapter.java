@@ -12,7 +12,6 @@ public class EmailNotifierAdapter implements Notifier {
 
     @Override
     public void notify(String message) {
-        // Адаптируем вызов — преобразуем notify() в sendEmail()
         adaptee.sendEmail(
                 recipientEmail,
                 "Новое сообщение в Messenger",

@@ -3,7 +3,6 @@ package messenger.strategy;
 import messenger.facade.MessengerFacade;
 import messenger.singleton.WebSocketManager;
 
-// Strategy (ConcreteStrategyA) — алгоритм отправки текста
 public class TextSendStrategy implements SendStrategy {
 
     private final MessengerFacade  facade;
@@ -14,8 +13,6 @@ public class TextSendStrategy implements SendStrategy {
         this.wsManager = wsManager;
     }
 
-    // AlgorithmInterface() — Factory Method + Builder через Facade
-    // Реальную WebSocket-отправку делает Command
     @Override
     public String execute(SendContext context) {
         facade.sendText("Вы", context.getText(), context.getQuote());
